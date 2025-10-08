@@ -14,7 +14,32 @@ class AbsensiService {
     return prefs.getString('token');
   }
 
-  // Check-in menggunakan QR Code
+  /// Mengirim data check-in presensi berdasarkan kode sesi QR.
+  ///
+  /// **Endpoint**: `POST /absensi/check-in`
+  ///
+  /// **Request Body**:
+  /// ```json
+  /// {
+  ///   "kodeSesi": "string",
+  ///   "latitude": double,
+  ///   "longitude": double
+  /// }
+  /// ```
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "message": "Presensi berhasil!"
+  /// }
+  /// ```
+  ///
+  /// **Error Response (400/403/500)**:
+  /// ```json
+  /// {
+  ///   "message": "Pesan error spesifik (misal: kode tidak valid, di luar radius, dll)"
+  /// }
+  /// ```
   Future<String> checkIn(
     String kodeSesi,
     double latitude,
@@ -46,7 +71,31 @@ class AbsensiService {
     }
   }
 
-  // Membuat pengajuan izin/sakit (dengan upload file)
+  /// Membuat pengajuan absensi (izin/sakit) dengan kemungkinan lampiran.
+  ///
+  /// **Endpoint**: `POST /absensi/pengajuan` (Multipart Form Data)
+  ///
+  /// **Request Fields**:
+  /// - `tanggal`: "YYYY-MM-DD" (string)
+  /// - `keterangan`: "izin" atau "sakit" (string)
+  /// - `alasan`: "Alasan lengkap" (string)
+  /// - `jadwalIds`: JSON string array dari ID jadwal, contoh: '["id1", "id2"]'
+  /// - `fileBukti`: File (opsional)
+  ///
+  /// **Success Response (201)**:
+  /// ```json
+  /// {
+  ///   "message": "Pengajuan berhasil dikirim.",
+  ///   "data": { ... } // Objek pengajuan yang baru dibuat
+  /// }
+  /// ```
+  ///
+  /// **Error Response (400/500)**:
+  /// ```json
+  /// {
+  ///   "message": "Pesan error spesifik"
+  /// }
+  /// ```
   Future<String> createPengajuan({
     required String tanggal,
     required String keterangan,
@@ -87,7 +136,32 @@ class AbsensiService {
     }
   }
 
-  // Melihat riwayat pengajuan izin/sakit
+  /// Mengambil riwayat pengajuan absensi milik pengguna yang sedang login.
+  ///
+  /// **Endpoint**: `GET /absensi/pengajuan/riwayat-saya`
+  ///
+  /// **Success Response (200)**: `List<PengajuanAbsensi>`
+  /// ```json
+  /// [
+  ///   {
+  ///     "_id": "string",
+  ///     "tanggal": "YYYY-MM-DD",
+  ///     "keterangan": "string",
+  ///     "alasan": "string",
+  ///     "status": "string ('pending', 'disetujui', 'ditolak')",
+  ///     "jadwalTerkait": [ ... ],
+  ///     "fileBukti": { "url": "string", "public_id": "string" },
+  ///     "ditinjauOleh": { "name": "string" }
+  ///   }
+  /// ]
+  /// ```
+  ///
+  /// **Error Response (500)**:
+  /// ```json
+  /// {
+  ///   "message": "Gagal mengambil riwayat pengajuan."
+  /// }
+  /// ```
   Future<List<PengajuanAbsensi>> getRiwayatPengajuan() async {
     try {
       final token = await _getToken();
@@ -108,7 +182,36 @@ class AbsensiService {
     }
   }
 
-  // Riwayat presensi (sudah ada di siswa_service, tapi bisa juga ditaruh sini)
+  /// Mengambil riwayat presensi milik siswa yang sedang login.
+  ///
+  /// **Endpoint**: `GET /siswa/presensi?page=<num>&limit=<num>`
+  ///
+  /// **Success Response (200)**: Objek Paginasi
+  /// ```json
+  /// {
+  ///   "docs": [
+  ///     {
+  ///       "_id": "string",
+  ///       "keterangan": "string ('hadir', 'sakit', 'izin', 'alpa')",
+  ///       "waktuMasuk": "ISO_Date_String | null",
+  ///       "tanggal": "YYYY-MM-DD",
+  ///       "jadwal": { ... } // Objek jadwal
+  ///     }
+  ///   ],
+  ///   "totalDocs": int,
+  ///   "limit": int,
+  ///   "totalPages": int,
+  ///   "page": int,
+  ///   ...
+  /// }
+  /// ```
+  ///
+  /// **Error Response (500)**:
+  /// ```json
+  /// {
+  ///   "message": "Gagal memuat riwayat presensi"
+  /// }
+  /// ```
   Future<List<Absensi>> getRiwayatPresensi({
     int page = 1,
     int limit = 15,
@@ -116,13 +219,14 @@ class AbsensiService {
     try {
       final token = await _getToken();
       final response = await http.get(
+        // Endpoint ini ada di siswaController, bukan absensiController
         Uri.parse('$_baseUrl/siswa/presensi?page=$page&limit=$limit'),
         headers: {'Authorization': 'Bearer $token'},
       );
 
       final body = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        final List<dynamic> data = body['docs']; // Perbaikan paginasi
+        final List<dynamic> data = body['docs'];
         return data.map((json) => Absensi.fromJson(json)).toList();
       } else {
         throw Exception(body['message'] ?? 'Gagal memuat riwayat presensi');

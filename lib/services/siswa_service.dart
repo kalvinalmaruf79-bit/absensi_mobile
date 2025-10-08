@@ -8,7 +8,21 @@ import '../models/histori_aktivitas.dart';
 class SiswaService {
   final ApiService _apiService = ApiService();
 
-  // Dashboard
+  /// Mengambil data ringkasan untuk dashboard siswa.
+  ///
+  /// **Endpoint**: `GET /siswa/dashboard`
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "siswa": { "name": "string", "identifier": "string", "kelas": { ... } },
+  ///   "jadwalMendatang": { ... } | null, // Objek Jadwal
+  ///   "tugasMendatang": [ { ... } ], // List Objek Tugas
+  ///   "statistikPresensi": {
+  ///     "hadir": int, "izin": int, "sakit": int, "alpa": int
+  ///   }
+  /// }
+  /// ```
   Future<Map<String, dynamic>> getDashboard() async {
     try {
       return await _apiService.get('siswa/dashboard');
@@ -17,7 +31,18 @@ class SiswaService {
     }
   }
 
-  // Jadwal
+  /// Mengambil jadwal siswa per hari untuk semester tertentu.
+  ///
+  /// **Endpoint**: `GET /siswa/jadwal?tahunAjaran=<string>&semester=<string>`
+  ///
+  /// **Success Response (200)**: Map hari ke list jadwal
+  /// ```json
+  /// {
+  ///   "senin": [ { ... } ], // List Objek Jadwal
+  ///   "selasa": [ { ... } ],
+  ///   ...
+  /// }
+  /// ```
   Future<Map<String, List<Jadwal>>> getJadwalSiswa(
     String tahunAjaran,
     String semester,
@@ -39,6 +64,16 @@ class SiswaService {
     }
   }
 
+  /// Mengambil satu jadwal terdekat yang akan datang.
+  ///
+  /// **Endpoint**: `GET /siswa/jadwal/mendatang`
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "jadwalMendatang": { ... } | null // Objek Jadwal
+  /// }
+  /// ```
   Future<Jadwal?> getJadwalMendatang() async {
     try {
       final response = await _apiService.get('siswa/jadwal/mendatang');
@@ -51,7 +86,23 @@ class SiswaService {
     }
   }
 
-  // Tugas
+  /// Mengambil daftar tugas yang akan datang (deadline belum lewat).
+  ///
+  /// **Endpoint**: `GET /siswa/tugas/mendatang?limit=<num>`
+  ///
+  /// **Success Response (200)**: `List<Tugas>`
+  /// ```json
+  /// [
+  ///   {
+  ///     "_id": "string",
+  ///     "judul": "string",
+  ///     "deskripsi": "string",
+  ///     "deadline": "ISO_Date_String",
+  ///     "mataPelajaran": { "nama": "string", "kode": "string" },
+  ///     "guru": { "name": "string" }
+  ///   }
+  /// ]
+  /// ```
   Future<List<Tugas>> getTugasMendatang({int limit = 5}) async {
     try {
       final response = await _apiService.get(
@@ -64,7 +115,24 @@ class SiswaService {
     }
   }
 
-  // Nilai
+  /// Mengambil daftar nilai siswa untuk semester tertentu.
+  ///
+  /// **Endpoint**: `GET /siswa/nilai?tahunAjaran=<string>&semester=<string>`
+  ///
+  /// **Success Response (200)**: Objek Paginasi
+  /// ```json
+  /// {
+  ///   "docs": [
+  ///     {
+  ///       "_id": "string",
+  ///       "nilai": double,
+  ///       "jenisPenilaian": "string",
+  ///       ...
+  ///     }
+  ///   ],
+  ///   ... // Properti paginasi lainnya
+  /// }
+  /// ```
   Future<List<Nilai>> getNilaiSiswa(String tahunAjaran, String semester) async {
     try {
       final response = await _apiService.get(
@@ -78,7 +146,20 @@ class SiswaService {
     }
   }
 
-  // Teman Sekelas
+  /// Mengambil daftar teman sekelas.
+  ///
+  /// **Endpoint**: `GET /siswa/teman-sekelas`
+  ///
+  /// **Success Response (200)**: `List<Map>`
+  /// ```json
+  /// [
+  ///   {
+  ///     "_id": "string",
+  ///     "name": "string",
+  ///     "identifier": "string"
+  ///   }
+  /// ]
+  /// ```
   Future<List<Map<String, dynamic>>> getTemanSekelas() async {
     try {
       final response = await _apiService.get('siswa/teman-sekelas');
@@ -89,7 +170,27 @@ class SiswaService {
     }
   }
 
-  // Notifikasi
+  /// Mengambil daftar notifikasi untuk siswa (dengan paginasi).
+  ///
+  /// **Endpoint**: `GET /siswa/notifikasi?page=<num>&limit=<num>`
+  ///
+  /// **Success Response (200)**: Objek Paginasi
+  /// ```json
+  /// {
+  ///   "docs": [
+  ///     {
+  ///       "_id": "string",
+  ///       "tipe": "string",
+  ///       "judul": "string",
+  ///       "pesan": "string",
+  ///       "isRead": boolean,
+  ///       "createdAt": "ISO_Date_String",
+  ///       "resourceId": "string | null"
+  ///     }
+  ///   ],
+  ///   ... // Properti paginasi lainnya
+  /// }
+  /// ```
   Future<List<Notifikasi>> getNotifikasi({int page = 1, int limit = 20}) async {
     try {
       final response = await _apiService.get(
@@ -103,8 +204,19 @@ class SiswaService {
     }
   }
 
+  /// Menandai notifikasi sebagai sudah dibaca.
+  ///
+  /// **Endpoint**: `PATCH /siswa/notifikasi/:notifikasiId/read` atau `PATCH /siswa/notifikasi/all/read`
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "message": "<num> notifikasi ditandai telah dibaca."
+  /// }
+  /// ```
   Future<String> markNotifikasiAsRead(String notifikasiId) async {
     try {
+      // Backend menggunakan 'id' sebagai parameter, bukan 'notifikasiId'
       final response = await _apiService.patch(
         'siswa/notifikasi/$notifikasiId/read',
         {},
@@ -115,7 +227,24 @@ class SiswaService {
     }
   }
 
-  // Histori Aktivitas
+  /// Mengambil histori aktivitas siswa (dengan paginasi).
+  ///
+  /// **Endpoint**: `GET /siswa/histori-aktivitas?page=<num>&limit=<num>`
+  ///
+  /// **Success Response (200)**: Objek Paginasi
+  /// ```json
+  /// {
+  ///   "docs": [
+  ///     {
+  ///       "_id": "string",
+  ///       "action": "string",
+  ///       "details": "string | null",
+  ///       "createdAt": "ISO_Date_String"
+  ///     }
+  ///   ],
+  ///   ... // Properti paginasi lainnya
+  /// }
+  /// ```
   Future<List<HistoriAktivitas>> getHistoriAktivitas({
     int page = 1,
     int limit = 15,

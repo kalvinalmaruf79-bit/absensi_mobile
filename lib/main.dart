@@ -1,8 +1,10 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
-import 'services/notification_service.dart'; // Impor layanan notifikasi
+import 'screens/main_navigation.dart';
+import 'services/notification_service.dart';
+import 'utils/app_theme.dart';
 
 void main() async {
   // Pastikan widget Flutter sudah siap sebelum menjalankan kode lain
@@ -25,18 +27,15 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Sistem Akademik Sekolah',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
+      title: 'SMKScan - Sistem Akademik Sekolah',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme, // Menggunakan tema dari AppTheme
       // Tentukan halaman awal berdasarkan status login
-      home: isLoggedIn ? const HomeScreen() : const LoginScreen(),
+      home: isLoggedIn ? const MainNavigation() : const LoginScreen(),
       // Definisikan rute untuk navigasi
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/main': (context) => const MainNavigation(),
       },
     );
   }
