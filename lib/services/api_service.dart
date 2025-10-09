@@ -8,10 +8,16 @@ class ApiService {
   // Base URL API Backend
   static const String baseUrl = AppConstants.baseUrl;
 
-  /// Method untuk mendapatkan token dari SharedPreferences
-  Future<String?> _getToken() async {
+  /// Method untuk mendapatkan token dari SharedPreferences (PUBLIC)
+  /// Digunakan oleh service lain untuk multipart request
+  Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('token');
+  }
+
+  /// Method PRIVATE untuk mendapatkan token (backward compatibility)
+  Future<String?> _getToken() async {
+    return await getToken();
   }
 
   /// Method untuk membuat header dengan token

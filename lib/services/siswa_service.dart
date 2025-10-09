@@ -1,3 +1,10 @@
+// lib/services/siswa_service.dart
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart'; // <-- PERBAIKAN: Impor ditambahkan
+import 'package:path/path.dart' as path;
+
 import 'api_service.dart';
 import '../models/jadwal.dart';
 import '../models/tugas.dart';
@@ -258,6 +265,363 @@ class SiswaService {
       return data.map((json) => HistoriAktivitas.fromJson(json)).toList();
     } catch (e) {
       throw Exception('Gagal memuat histori aktivitas: $e');
+    }
+  }
+
+  /// Mengambil daftar tugas berdasarkan kelas dan mata pelajaran.
+  ///
+  /// **Endpoint**: `GET /tugas?kelasId=<string>&mataPelajaranId=<string>`
+  ///
+  /// **Success Response (200)**: `List<Tugas>`
+  /// ```json
+  /// [
+  ///   {
+  ///     "_id": "string",
+  ///     "judul": "string",
+  ///     "deskripsi": "string",
+  ///     "deadline": "ISO_Date_String",
+  ///     "mataPelajaran": { "nama": "string", "kode": "string" },
+  ///     "kelas": { "nama": "string", "tingkat": "string", "jurusan": "string" },
+  ///     "guru": { "name": "string", "identifier": "string" },
+  ///     "semester": "string",
+  ///     "tahunAjaran": "string",
+  ///     "submissions": [ ... ]
+  ///   }
+  /// ]
+  /// ```
+  Future<List<Tugas>> getTugasByKelas({
+    required String kelasId,
+    required String mataPelajaranId,
+  }) async {
+    try {
+      final response = await _apiService.get(
+        'tugas?kelasId=$kelasId&mataPelajaranId=$mataPelajaranId',
+      );
+      final List<dynamic> data = response;
+      return data.map((json) => Tugas.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Gagal memuat daftar tugas: $e');
+    }
+  }
+
+  /// Mengambil detail tugas berdasarkan ID.
+  ///
+  /// **Endpoint**: `GET /tugas/:id`
+  ///
+  /// **Success Response (200)**: Objek Tugas lengkap dengan submissions
+  /// ```json
+  /// {
+  ///   "_id": "string",
+  ///   "judul": "string",
+  ///   "deskripsi": "string",
+  ///   "deadline": "ISO_Date_String",
+  ///   "mataPelajaran": { "nama": "string", "kode": "string" },
+  ///   "kelas": { "nama": "string", "tingkat": "string", "jurusan": "string" },
+  ///   "guru": { "name": "string", "identifier": "string" },
+  ///   "semester": "string",
+  ///   "tahunAjaran": "string",
+  ///   "submissions": [
+  ///     {
+  ///       "_id": "string",
+  ///       "siswa": { "name": "string", "identifier": "string" },
+  ///       "url": "string",
+  ///       "fileName": "string",
+  ///       "submittedAt": "ISO_Date_String",
+  ///       "nilai": number | null,
+  ///       "feedback": "string | null"
+  ///     }
+  ///   ]
+  /// }
+  /// ```
+  Future<Map<String, dynamic>> getTugasById(String tugasId) async {
+    try {
+      final response = await _apiService.get('tugas/$tugasId');
+      return response;
+    } catch (e) {
+      throw Exception('Gagal memuat detail tugas: $e');
+    }
+  }
+
+  /// Mengambil daftar tugas siswa dengan filter status
+  ///
+  /// **Endpoint**: `GET /tugas/siswa/list?status=<string>&mataPelajaranId=<string>`
+  ///
+  /// **Status Options**: 'active', 'submitted', 'graded', 'late', 'all'
+  Future<List<Tugas>> getTugasSiswaByStatus({
+    required String status,
+    String? mataPelajaranId,
+  }) async {
+    try {
+      String endpoint = 'tugas/siswa/list?status=$status';
+      if (mataPelajaranId != null && mataPelajaranId.isNotEmpty) {
+        endpoint += '&mataPelajaranId=$mataPelajaranId';
+      }
+
+      final response = await _apiService.get(endpoint);
+      final List<dynamic> data = response;
+      return data.map((json) => Tugas.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Gagal memuat daftar tugas: $e');
+    }
+  }
+
+  /// Re-upload tugas yang sudah dikumpulkan (belum dinilai)
+  ///
+  /// **Endpoint**: `PUT /tugas/:id/resubmit` (Multipart Form Data)
+  Future<String> resubmitTugas({
+    required String tugasId,
+    required File file,
+  }) async {
+    try {
+      final token = await _apiService.getToken();
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login kembali.');
+      }
+
+      final url = Uri.parse('${ApiService.baseUrl}/tugas/$tugasId/resubmit');
+      var request = http.MultipartRequest('PUT', url);
+      request.headers['Authorization'] = 'Bearer $token';
+
+      final fileName = path.basename(file.path);
+      final fileExtension = path.extension(file.path).toLowerCase();
+
+      String mimeType;
+      switch (fileExtension) {
+        case '.pdf':
+          mimeType = 'application/pdf';
+          break;
+        case '.doc':
+          mimeType = 'application/msword';
+          break;
+        case '.docx':
+          mimeType =
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          break;
+        case '.jpg':
+        case '.jpeg':
+          mimeType = 'image/jpeg';
+          break;
+        case '.png':
+          mimeType = 'image/png';
+          break;
+        default:
+          mimeType = 'application/octet-stream';
+      }
+
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          file.path,
+          filename: fileName,
+          contentType: MediaType.parse(mimeType),
+        ),
+      );
+
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 120),
+        onTimeout: () {
+          throw Exception('Upload timeout. Periksa koneksi internet Anda.');
+        },
+      );
+
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        try {
+          final body = jsonDecode(response.body);
+          return body['message'] ?? 'Tugas berhasil diperbarui.';
+        } catch (e) {
+          return response.body.isNotEmpty
+              ? response.body
+              : 'Tugas berhasil diperbarui.';
+        }
+      } else if (response.statusCode == 400) {
+        try {
+          final body = jsonDecode(response.body);
+          throw Exception(body['message'] ?? 'Request tidak valid.');
+        } catch (e) {
+          throw Exception('Request tidak valid: ${response.body}');
+        }
+      } else if (response.statusCode == 401) {
+        throw Exception('Sesi Anda telah berakhir. Silakan login kembali.');
+      } else if (response.statusCode == 404) {
+        throw Exception('Tugas tidak ditemukan.');
+      } else if (response.statusCode == 413) {
+        throw Exception('Ukuran file terlalu besar. Maksimal 20MB.');
+      } else {
+        try {
+          final body = jsonDecode(response.body);
+          throw Exception(
+            body['message'] ??
+                'Gagal memperbarui tugas (${response.statusCode})',
+          );
+        } catch (e) {
+          throw Exception(
+            'Gagal memperbarui tugas (${response.statusCode}): ${response.body}',
+          );
+        }
+      }
+    } on SocketException {
+      throw Exception('Tidak ada koneksi internet. Periksa koneksi Anda.');
+    } on http.ClientException {
+      throw Exception('Gagal terhubung ke server. Coba lagi nanti.');
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('Gagal memperbarui tugas: $e');
+    }
+  }
+
+  /// Mengumpulkan tugas (submit tugas) dengan file.
+  ///
+  /// **Endpoint**: `POST /tugas/:id/submit` (Multipart Form Data)
+  ///
+  /// **Request Fields**:
+  /// - `file`: File tugas (required, max 20MB)
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "message": "Tugas berhasil dikumpulkan."
+  /// }
+  /// ```
+  ///
+  /// **Error Response (400/404/500)**:
+  /// ```json
+  /// {
+  ///   "message": "Pesan error spesifik"
+  /// }
+  /// ```
+  Future<String> submitTugas({
+    required String tugasId,
+    required File file,
+  }) async {
+    try {
+      // Dapatkan token dari ApiService
+      final token = await _apiService.getToken();
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login kembali.');
+      }
+
+      // Buat multipart request
+      final url = Uri.parse('${ApiService.baseUrl}/tugas/$tugasId/submit');
+      var request = http.MultipartRequest('POST', url);
+
+      // Tambahkan header Authorization
+      request.headers['Authorization'] = 'Bearer $token';
+
+      // Dapatkan nama file dan extension
+      final fileName = path.basename(file.path);
+      final fileExtension = path.extension(file.path).toLowerCase();
+
+      // Tentukan mime type berdasarkan extension
+      String mimeType;
+      switch (fileExtension) {
+        case '.pdf':
+          mimeType = 'application/pdf';
+          break;
+        case '.doc':
+          mimeType = 'application/msword';
+          break;
+        case '.docx':
+          mimeType =
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          break;
+        case '.jpg':
+        case '.jpeg':
+          mimeType = 'image/jpeg';
+          break;
+        case '.png':
+          mimeType = 'image/png';
+          break;
+        default:
+          mimeType = 'application/octet-stream';
+      }
+
+      // Tambahkan file dengan mime type yang benar
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file', // Nama field harus sesuai dengan backend
+          file.path,
+          filename: fileName,
+          // <-- PERBAIKAN: Menggunakan MediaType dari http_parser, bukan http.MediaType
+          contentType: MediaType.parse(mimeType),
+        ),
+      );
+
+      print('Uploading file: $fileName');
+      print('File size: ${await file.length()} bytes');
+      print('Mime type: $mimeType');
+      print('URL: $url');
+
+      // Kirim request
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 120), // Timeout 2 menit
+        onTimeout: () {
+          throw Exception('Upload timeout. Periksa koneksi internet Anda.');
+        },
+      );
+
+      // Konversi streamed response ke response biasa
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      // Handle response
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        try {
+          final body = jsonDecode(response.body);
+          return body['message'] ?? 'Tugas berhasil dikumpulkan.';
+        } catch (e) {
+          // Jika response bukan JSON, kembalikan text biasa
+          return response.body.isNotEmpty
+              ? response.body
+              : 'Tugas berhasil dikumpulkan.';
+        }
+      } else if (response.statusCode == 400) {
+        // Bad Request
+        try {
+          final body = jsonDecode(response.body);
+          throw Exception(body['message'] ?? 'Request tidak valid.');
+        } catch (e) {
+          throw Exception('Request tidak valid: ${response.body}');
+        }
+      } else if (response.statusCode == 401) {
+        // Unauthorized
+        throw Exception('Sesi Anda telah berakhir. Silakan login kembali.');
+      } else if (response.statusCode == 404) {
+        // Not Found
+        throw Exception('Tugas tidak ditemukan.');
+      } else if (response.statusCode == 413) {
+        // Payload Too Large
+        throw Exception('Ukuran file terlalu besar. Maksimal 20MB.');
+      } else {
+        // Error lainnya
+        try {
+          final body = jsonDecode(response.body);
+          throw Exception(
+            body['message'] ??
+                'Gagal mengumpulkan tugas (${response.statusCode})',
+          );
+        } catch (e) {
+          throw Exception(
+            'Gagal mengumpulkan tugas (${response.statusCode}): ${response.body}',
+          );
+        }
+      }
+    } on SocketException {
+      throw Exception('Tidak ada koneksi internet. Periksa koneksi Anda.');
+    } on http.ClientException {
+      throw Exception('Gagal terhubung ke server. Coba lagi nanti.');
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('Gagal mengumpulkan tugas: $e');
     }
   }
 }

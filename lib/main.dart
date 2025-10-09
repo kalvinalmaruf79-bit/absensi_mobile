@@ -1,14 +1,20 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_navigation.dart';
 import 'services/notification_service.dart';
 import 'utils/app_theme.dart';
 
 void main() async {
-  // Pastikan widget Flutter sudah siap sebelum menjalankan kode lain
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inisialisasi locale Indonesia
+  await initializeDateFormatting('id', null);
+  Intl.defaultLocale = 'id';
 
   // Inisialisasi OneSignal
   await NotificationService.initOneSignal();
@@ -29,10 +35,26 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'SMKScan - Sistem Akademik Sekolah',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme, // Menggunakan tema dari AppTheme
-      // Tentukan halaman awal berdasarkan status login
+      theme: AppTheme.lightTheme,
+
+      // Localization delegates
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
+      // Supported locales
+      supportedLocales: const [
+        Locale('id'), // Indonesia
+        Locale('en'), // English
+      ],
+
+      // Default locale
+      locale: const Locale('id'),
+
+      // Routes
       home: isLoggedIn ? const MainNavigation() : const LoginScreen(),
-      // Definisikan rute untuk navigasi
       routes: {
         '/login': (context) => const LoginScreen(),
         '/main': (context) => const MainNavigation(),

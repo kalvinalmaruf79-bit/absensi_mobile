@@ -70,7 +70,7 @@ class _MainNavigationState extends State<MainNavigation> {
           decoration: BoxDecoration(
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 10,
                 offset: const Offset(0, -2),
               ),
@@ -78,7 +78,7 @@ class _MainNavigationState extends State<MainNavigation> {
           ),
           child: NavigationBarTheme(
             data: NavigationBarThemeData(
-              indicatorColor: AppTheme.primaryColor.withOpacity(0.15),
+              indicatorColor: AppTheme.primaryColor.withValues(alpha: 0.15),
               backgroundColor: AppTheme.surfaceColor,
               elevation: 0,
               height: 70,

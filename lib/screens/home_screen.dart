@@ -2,10 +2,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/siswa_service.dart';
-import '../services/common_service.dart';
 import '../models/user.dart';
-import '../models/jadwal.dart';
-import '../models/tugas.dart';
 import '../utils/app_theme.dart';
 import 'login_screen.dart';
 
@@ -21,7 +18,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
   final SiswaService _siswaService = SiswaService();
-  final CommonService _commonService = CommonService();
 
   Future<User>? _userFuture;
   Future<Map<String, dynamic>>? _dashboardFuture;
@@ -346,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.1),
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
@@ -419,7 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
+                    color: Colors.green.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.schedule, color: Colors.green),
@@ -499,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.assignment, color: Colors.orange),
@@ -564,7 +560,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: Text(
@@ -653,7 +649,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, size: 32, color: color),
