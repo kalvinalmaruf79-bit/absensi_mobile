@@ -25,12 +25,12 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    _screens = const [
-      HomeScreen(),
-      AbsensiScreen(),
-      JadwalScreen(),
-      TugasScreen(),
-      ProfilScreen(),
+    _screens = [
+      HomeScreen(onNavigateToTab: _onTabTapped),
+      const AbsensiScreen(),
+      const JadwalScreen(),
+      const TugasScreen(),
+      const ProfilScreen(),
     ];
   }
 
@@ -82,8 +82,8 @@ class _MainNavigationState extends State<MainNavigation> {
               backgroundColor: AppTheme.surfaceColor,
               elevation: 0,
               height: 70,
-              labelTextStyle: MaterialStateProperty.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
+              labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
                   return const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
