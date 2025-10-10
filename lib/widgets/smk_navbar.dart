@@ -18,7 +18,7 @@ class SMKNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return NavigationBarTheme(
       data: NavigationBarThemeData(
-        indicatorColor: AppTheme.primaryColor.withOpacity(0.1),
+        indicatorColor: AppTheme.primaryColor.withValues(alpha: 0.1),
         backgroundColor: AppTheme.surfaceColor,
         elevation: 8,
         labelTextStyle: MaterialStateProperty.resolveWith((states) {

@@ -19,7 +19,7 @@ class Jadwal {
 
   factory Jadwal.fromJson(Map<String, dynamic> json) {
     // Helper function untuk mengkonversi field yang bisa String atau Map
-    Map<String, dynamic> _parseField(dynamic field, String defaultKey) {
+    Map<String, dynamic> parseField(dynamic field, String defaultKey) {
       if (field == null) return {};
       if (field is Map<String, dynamic>) return field;
       if (field is String) return {defaultKey: field};
@@ -31,9 +31,9 @@ class Jadwal {
       hari: json['hari'] ?? '',
       jamMulai: json['jamMulai'] ?? '',
       jamSelesai: json['jamSelesai'] ?? '',
-      mataPelajaran: _parseField(json['mataPelajaran'], '_id'),
-      guru: _parseField(json['guru'], '_id'),
-      kelas: _parseField(json['kelas'], '_id'),
+      mataPelajaran: parseField(json['mataPelajaran'], '_id'),
+      guru: parseField(json['guru'], '_id'),
+      kelas: parseField(json['kelas'], '_id'),
     );
   }
 }

@@ -7,7 +7,7 @@ import '../services/siswa_service.dart';
 import '../models/tugas.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Screen Tugas - Terintegrasi dengan Backend
+/// Screen Tugas - Improved dengan Tab Baru
 class TugasScreen extends StatefulWidget {
   const TugasScreen({super.key});
 
@@ -28,7 +28,7 @@ class _TugasScreenState extends State<TugasScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadCurrentUser();
     _loadTugasData();
   }
@@ -59,14 +59,11 @@ class _TugasScreenState extends State<TugasScreen>
     });
 
     try {
-      final dashboardData = await _siswaService.getDashboard();
-      final tugasMendatang = dashboardData['tugasMendatang'] as List<dynamic>?;
-
-      if (tugasMendatang != null) {
-        _allTugas = tugasMendatang.map((json) => Tugas.fromJson(json)).toList();
-      }
+      // Load semua status tugas
+      final allTugas = await _siswaService.getTugasSiswaByStatus(status: 'all');
 
       setState(() {
+        _allTugas = allTugas;
         _isLoading = false;
       });
     } catch (e) {
@@ -85,9 +82,16 @@ class _TugasScreenState extends State<TugasScreen>
               !tugas.hasSubmittedBy(_currentUserId);
         }).toList();
 
-      case 'completed':
+      case 'submitted':
         return _allTugas.where((tugas) {
-          return tugas.hasSubmittedBy(_currentUserId);
+          final submission = tugas.getSubmissionBySiswa(_currentUserId);
+          return submission != null && submission.nilai == null;
+        }).toList();
+
+      case 'graded':
+        return _allTugas.where((tugas) {
+          final submission = tugas.getSubmissionBySiswa(_currentUserId);
+          return submission != null && submission.nilai != null;
         }).toList();
 
       case 'late':
@@ -133,7 +137,7 @@ class _TugasScreenState extends State<TugasScreen>
                     child: Icon(
                       Icons.assignment,
                       size: 80,
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                     ),
                   ),
                 ),
@@ -150,12 +154,48 @@ class _TugasScreenState extends State<TugasScreen>
                     unselectedLabelColor: Colors.white70,
                     labelStyle: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: 13,
                     ),
-                    tabs: const [
-                      Tab(text: 'Aktif'),
-                      Tab(text: 'Selesai'),
-                      Tab(text: 'Terlambat'),
+                    isScrollable: true,
+                    tabs: [
+                      Tab(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.pending_actions, size: 18),
+                            const SizedBox(width: 6),
+                            Text('Aktif (${_filterTugas('active').length})'),
+                          ],
+                        ),
+                      ),
+                      Tab(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.upload_file, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Dikumpulkan (${_filterTugas('submitted').length})',
+                            ),
+                          ],
+                        ),
+                      ),
+                      Tab(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.grade, size: 18),
+                            const SizedBox(width: 6),
+                            Text('Dinilai (${_filterTugas('graded').length})'),
+                          ],
+                        ),
+                      ),
+                      Tab(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning, size: 18),
+                            const SizedBox(width: 6),
+                            Text('Terlambat (${_filterTugas('late').length})'),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -171,7 +211,8 @@ class _TugasScreenState extends State<TugasScreen>
                 controller: _tabController,
                 children: [
                   _buildTaskList('active'),
-                  _buildTaskList('completed'),
+                  _buildTaskList('submitted'),
+                  _buildTaskList('graded'),
                   _buildTaskList('late'),
                 ],
               ),
@@ -232,20 +273,10 @@ class _TugasScreenState extends State<TugasScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              type == 'completed'
-                  ? Icons.check_circle_outline
-                  : Icons.assignment_outlined,
-              size: 100,
-              color: Colors.grey[300],
-            ),
+            Icon(_getEmptyIcon(type), size: 100, color: Colors.grey[300]),
             const SizedBox(height: 16),
             Text(
-              type == 'active'
-                  ? 'Tidak ada tugas aktif'
-                  : type == 'completed'
-                  ? 'Belum ada tugas selesai'
-                  : 'Tidak ada tugas terlambat',
+              _getEmptyTitle(type),
               style: TextStyle(
                 fontSize: 18,
                 color: Colors.grey[600],
@@ -254,11 +285,7 @@ class _TugasScreenState extends State<TugasScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              type == 'active'
-                  ? 'Tugas akan muncul di sini'
-                  : type == 'completed'
-                  ? 'Tugas yang sudah dikumpulkan akan muncul di sini'
-                  : 'Jangan sampai terlambat mengumpulkan tugas!',
+              _getEmptySubtitle(type),
               style: TextStyle(fontSize: 14, color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
@@ -279,12 +306,57 @@ class _TugasScreenState extends State<TugasScreen>
     );
   }
 
+  IconData _getEmptyIcon(String type) {
+    switch (type) {
+      case 'submitted':
+        return Icons.cloud_upload;
+      case 'graded':
+        return Icons.check_circle_outline;
+      case 'late':
+        return Icons.schedule;
+      default:
+        return Icons.assignment_outlined;
+    }
+  }
+
+  String _getEmptyTitle(String type) {
+    switch (type) {
+      case 'active':
+        return 'Tidak ada tugas aktif';
+      case 'submitted':
+        return 'Belum ada tugas dikumpulkan';
+      case 'graded':
+        return 'Belum ada tugas dinilai';
+      case 'late':
+        return 'Tidak ada tugas terlambat';
+      default:
+        return 'Tidak ada data';
+    }
+  }
+
+  String _getEmptySubtitle(String type) {
+    switch (type) {
+      case 'active':
+        return 'Tugas yang perlu dikumpulkan akan muncul di sini';
+      case 'submitted':
+        return 'Tugas yang sudah dikumpulkan tapi belum dinilai';
+      case 'graded':
+        return 'Tugas yang sudah dinilai akan muncul di sini';
+      case 'late':
+        return 'Jangan sampai terlambat mengumpulkan tugas!';
+      default:
+        return '';
+    }
+  }
+
   Widget _buildTaskCard(Tugas tugas, String type) {
+    final submission = tugas.getSubmissionBySiswa(_currentUserId);
     final daysUntilDeadline = tugas.deadline.difference(DateTime.now()).inDays;
+
     String priority = 'low';
-    if (daysUntilDeadline <= 2) {
+    if (daysUntilDeadline <= 2 && !tugas.isDeadlinePassed) {
       priority = 'high';
-    } else if (daysUntilDeadline <= 5) {
+    } else if (daysUntilDeadline <= 5 && !tugas.isDeadlinePassed) {
       priority = 'medium';
     }
 
@@ -312,7 +384,7 @@ class _TugasScreenState extends State<TugasScreen>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -330,14 +402,58 @@ class _TugasScreenState extends State<TugasScreen>
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: priorityColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                    if (type == 'active')
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: priorityColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          priorityIcon,
+                          color: priorityColor,
+                          size: 20,
+                        ),
                       ),
-                      child: Icon(priorityIcon, color: priorityColor, size: 20),
-                    ),
+                    if (type == 'submitted')
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.pending,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                      ),
+                    if (type == 'graded')
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.successColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.check_circle,
+                          color: AppTheme.successColor,
+                          size: 20,
+                        ),
+                      ),
+                    if (type == 'late')
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.errorColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.warning,
+                          color: AppTheme.errorColor,
+                          size: 20,
+                        ),
+                      ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -345,12 +461,9 @@ class _TugasScreenState extends State<TugasScreen>
                         children: [
                           Text(
                             tugas.judul,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              decoration: type == 'completed'
-                                  ? TextDecoration.lineThrough
-                                  : null,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -360,7 +473,9 @@ class _TugasScreenState extends State<TugasScreen>
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withOpacity(0.1),
+                              color: AppTheme.primaryColor.withValues(
+                                alpha: 0.1,
+                              ),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -375,11 +490,24 @@ class _TugasScreenState extends State<TugasScreen>
                         ],
                       ),
                     ),
-                    if (type == 'completed')
-                      const Icon(
-                        Icons.check_circle,
-                        color: AppTheme.successColor,
-                        size: 28,
+                    if (type == 'graded' && submission?.nilai != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getNilaiColor(submission!.nilai!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${submission.nilai}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -434,6 +562,19 @@ class _TugasScreenState extends State<TugasScreen>
                           ),
                         ),
                       ),
+                    if (type == 'submitted' && submission != null)
+                      TextButton.icon(
+                        onPressed: () => _reuploadTugas(tugas),
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Ubah'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.orange,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -442,6 +583,13 @@ class _TugasScreenState extends State<TugasScreen>
         ),
       ),
     );
+  }
+
+  Color _getNilaiColor(double nilai) {
+    if (nilai >= 85) return AppTheme.successColor;
+    if (nilai >= 75) return Colors.blue;
+    if (nilai >= 60) return Colors.orange;
+    return AppTheme.errorColor;
   }
 
   void _showTaskDetail(BuildContext context, Tugas tugas, String type) {
@@ -490,10 +638,10 @@ class _TugasScreenState extends State<TugasScreen>
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withOpacity(0.05),
+                          color: AppTheme.primaryColor.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: AppTheme.primaryColor.withOpacity(0.2),
+                            color: AppTheme.primaryColor.withValues(alpha: 0.2),
                           ),
                         ),
                         child: Column(
@@ -546,10 +694,14 @@ class _TugasScreenState extends State<TugasScreen>
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppTheme.successColor.withOpacity(0.1),
+                            color: submission.nilai != null
+                                ? AppTheme.successColor.withValues(alpha: 0.1)
+                                : Colors.orange.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: AppTheme.successColor.withOpacity(0.3),
+                              color: submission.nilai != null
+                                  ? AppTheme.successColor.withValues(alpha: 0.3)
+                                  : Colors.orange.withValues(alpha: 0.3),
                             ),
                           ),
                           child: Column(
@@ -557,17 +709,25 @@ class _TugasScreenState extends State<TugasScreen>
                             children: [
                               Row(
                                 children: [
-                                  const Icon(
-                                    Icons.check_circle,
-                                    color: AppTheme.successColor,
+                                  Icon(
+                                    submission.nilai != null
+                                        ? Icons.check_circle
+                                        : Icons.pending,
+                                    color: submission.nilai != null
+                                        ? AppTheme.successColor
+                                        : Colors.orange,
                                   ),
                                   const SizedBox(width: 8),
-                                  const Text(
-                                    'Sudah Dikumpulkan',
+                                  Text(
+                                    submission.nilai != null
+                                        ? 'Sudah Dinilai'
+                                        : 'Menunggu Penilaian',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
-                                      color: AppTheme.successColor,
+                                      color: submission.nilai != null
+                                          ? AppTheme.successColor
+                                          : Colors.orange,
                                     ),
                                   ),
                                 ],
@@ -594,33 +754,118 @@ class _TugasScreenState extends State<TugasScreen>
                                 const SizedBox(height: 12),
                                 Row(
                                   children: [
-                                    const Icon(
-                                      Icons.grade,
-                                      color: AppTheme.accentColor,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Nilai: ${submission.nilai}',
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.accentColor,
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: _getNilaiColor(
+                                          submission.nilai!,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
+                                      child: Icon(
+                                        Icons.grade,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Nilai Anda',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${submission.nilai}',
+                                          style: TextStyle(
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                            color: _getNilaiColor(
+                                              submission.nilai!,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
-                                if (submission.feedback != null) ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Feedback: ${submission.feedback}',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[700],
-                                      fontStyle: FontStyle.italic,
+                                if (submission.feedback != null &&
+                                    submission.feedback!.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.comment,
+                                              size: 16,
+                                              color: Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Feedback Guru:',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.grey[800],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          submission.feedback!,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey[700],
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
+                              ] else ...[
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline,
+                                        size: 18,
+                                        color: Colors.blue[700],
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Anda masih bisa mengubah jawaban sebelum dinilai',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.blue[700],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ],
                           ),
@@ -639,6 +884,26 @@ class _TugasScreenState extends State<TugasScreen>
                             label: const Text('Upload Tugas'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.accentColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (type == 'submitted' && submission != null)
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _reuploadTugas(tugas);
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Ubah Jawaban'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
@@ -688,21 +953,16 @@ class _TugasScreenState extends State<TugasScreen>
 
   Future<void> _uploadTugas(Tugas tugas) async {
     try {
-      // Pick file dengan validasi extension
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
         allowMultiple: false,
       );
 
-      if (result == null) {
-        // User cancelled
-        return;
-      }
+      if (result == null) return;
 
       final platformFile = result.files.single;
 
-      // Validasi file path
       if (platformFile.path == null || platformFile.path!.isEmpty) {
         if (!mounted) return;
         _showErrorSnackBar('Tidak dapat membaca file. Coba lagi.');
@@ -711,19 +971,14 @@ class _TugasScreenState extends State<TugasScreen>
 
       final file = File(platformFile.path!);
 
-      // Check if file exists
       if (!await file.exists()) {
         if (!mounted) return;
         _showErrorSnackBar('File tidak ditemukan.');
         return;
       }
 
-      // Check file size
       final fileSize = await file.length();
       final fileSizeMB = fileSize / (1024 * 1024);
-
-      print('File selected: ${platformFile.name}');
-      print('File size: ${fileSizeMB.toStringAsFixed(2)} MB');
 
       if (fileSize > 20 * 1024 * 1024) {
         if (!mounted) return;
@@ -739,7 +994,6 @@ class _TugasScreenState extends State<TugasScreen>
         return;
       }
 
-      // Show loading dialog
       if (!mounted) return;
       showDialog(
         context: context,
@@ -775,34 +1029,25 @@ class _TugasScreenState extends State<TugasScreen>
         ),
       );
 
-      // Upload
       final message = await _siswaService.submitTugas(
         tugasId: tugas.id,
         file: file,
       );
 
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context);
 
-      // Show success message
       _showSuccessSnackBar(message);
-
-      // Reload data
       await _loadTugasData();
     } catch (e) {
-      print('Upload error: $e');
-
       if (!mounted) return;
 
-      // Close loading dialog if open
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
       }
 
-      // Parse and show error message
       String errorMessage = e.toString().replaceAll('Exception: ', '');
 
-      // Customize error messages
       if (errorMessage.contains('401')) {
         errorMessage = 'Sesi Anda telah berakhir. Silakan login kembali.';
       } else if (errorMessage.contains('SocketException') ||
@@ -816,6 +1061,150 @@ class _TugasScreenState extends State<TugasScreen>
         errorMessage = 'Tugas tidak ditemukan.';
       } else if (errorMessage.contains('413')) {
         errorMessage = 'Ukuran file terlalu besar. Maksimal 20MB.';
+      }
+
+      _showErrorSnackBar(errorMessage);
+    }
+  }
+
+  Future<void> _reuploadTugas(Tugas tugas) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Jawaban?'),
+        content: const Text(
+          'Apakah Anda yakin ingin mengubah jawaban tugas ini? File lama akan diganti dengan file baru.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ya, Ubah'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
+        allowMultiple: false,
+      );
+
+      if (result == null) return;
+
+      final platformFile = result.files.single;
+
+      if (platformFile.path == null || platformFile.path!.isEmpty) {
+        if (!mounted) return;
+        _showErrorSnackBar('Tidak dapat membaca file. Coba lagi.');
+        return;
+      }
+
+      final file = File(platformFile.path!);
+
+      if (!await file.exists()) {
+        if (!mounted) return;
+        _showErrorSnackBar('File tidak ditemukan.');
+        return;
+      }
+
+      final fileSize = await file.length();
+      final fileSizeMB = fileSize / (1024 * 1024);
+
+      if (fileSize > 20 * 1024 * 1024) {
+        if (!mounted) return;
+        _showErrorSnackBar(
+          'Ukuran file terlalu besar (${fileSizeMB.toStringAsFixed(1)} MB). Maksimal 20 MB.',
+        );
+        return;
+      }
+
+      if (fileSize == 0) {
+        if (!mounted) return;
+        _showErrorSnackBar('File kosong atau rusak.');
+        return;
+      }
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => WillPopScope(
+          onWillPop: () async => false,
+          child: Center(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Mengubah jawaban tugas...',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      platformFile.name,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final message = await _siswaService.resubmitTugas(
+        tugasId: tugas.id,
+        file: file,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      _showSuccessSnackBar(message);
+      await _loadTugasData();
+    } catch (e) {
+      if (!mounted) return;
+
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      String errorMessage = e.toString().replaceAll('Exception: ', '');
+
+      if (errorMessage.contains('401')) {
+        errorMessage = 'Sesi Anda telah berakhir. Silakan login kembali.';
+      } else if (errorMessage.contains('SocketException') ||
+          errorMessage.contains('NetworkException')) {
+        errorMessage = 'Tidak ada koneksi internet. Periksa koneksi Anda.';
+      } else if (errorMessage.contains('TimeoutException') ||
+          errorMessage.contains('timeout')) {
+        errorMessage =
+            'Upload timeout. Coba lagi atau gunakan file yang lebih kecil.';
+      } else if (errorMessage.contains('404')) {
+        errorMessage = 'Tugas tidak ditemukan atau belum pernah dikumpulkan.';
+      } else if (errorMessage.contains('413')) {
+        errorMessage = 'Ukuran file terlalu besar. Maksimal 20MB.';
+      } else if (errorMessage.contains('sudah dinilai')) {
+        errorMessage = 'Tugas sudah dinilai, tidak dapat diubah lagi.';
       }
 
       _showErrorSnackBar(errorMessage);

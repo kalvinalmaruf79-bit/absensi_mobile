@@ -5,6 +5,8 @@ import '../services/siswa_service.dart';
 import '../models/user.dart';
 import '../utils/app_theme.dart';
 import 'login_screen.dart';
+import 'nilai_screen.dart';
+import 'materi_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -37,17 +39,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Handle saat token terbukti tidak valid (401 Unauthorized)
   Future<void> _handleUnauthorized() async {
-    // Tunggu proses logout selesai
     await _authService.logout();
 
     if (mounted) {
-      // Navigasi ke LoginScreen dan hapus semua halaman sebelumnya
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginScreen()),
         (Route<dynamic> route) => false,
       );
 
-      // Tampilkan notifikasi setelah frame berikutnya selesai dirender
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -73,34 +72,26 @@ class _HomeScreenState extends State<HomeScreen> {
       body: FutureBuilder<User>(
         future: _userFuture,
         builder: (context, snapshot) {
-          // 1. Loading State
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // 2. Error State
           if (snapshot.hasError) {
             final error = snapshot.error.toString();
-            // Cek spesifik untuk error 401 (Unauthorized)
             if (error.contains('401')) {
-              // Panggil fungsi untuk handle logout
               WidgetsBinding.instance.addPostFrameCallback(
                 (_) => _handleUnauthorized(),
               );
-              // Tampilkan UI loading sementara proses navigasi
               return const Center(child: CircularProgressIndicator());
             }
-            // Tampilkan UI untuk error lainnya (koneksi, server down, dll)
             return _buildErrorView(error);
           }
 
-          // 3. Success State
           if (snapshot.hasData) {
             final user = snapshot.data!;
             return _buildHomeContent(user);
           }
 
-          // Fallback jika tidak ada data sama sekali
           return _buildErrorView('Data pengguna tidak ditemukan.');
         },
       ),
@@ -181,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           ),
-          // Menu Cards
+          // Menu Utama Section
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -190,43 +181,91 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     'Menu Utama',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 1.1,
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.9,
                     children: [
                       _buildMenuCard(
+                        icon: Icons.book_outlined,
+                        title: 'Materi',
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF26A69A), Color(0xFF00897B)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const MateriScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildMenuCard(
+                        icon: Icons.grade,
+                        title: 'Nilai',
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF7043), Color(0xFFE64A19)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const NilaiScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildMenuCard(
                         icon: Icons.qr_code_scanner,
-                        title: 'Absensi',
-                        subtitle: 'Scan QR Code',
-                        color: Colors.blue,
+                        title: 'Presensi',
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF42A5F5), Color(0xFF1E88E5)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         onTap: () => _navigateToTab(1),
                       ),
                       _buildMenuCard(
                         icon: Icons.calendar_today,
                         title: 'Jadwal',
-                        subtitle: 'Lihat jadwal',
-                        color: Colors.green,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF66BB6A), Color(0xFF43A047)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         onTap: () => _navigateToTab(2),
                       ),
                       _buildMenuCard(
                         icon: Icons.assignment,
                         title: 'Tugas',
-                        subtitle: 'Kelola tugas',
-                        color: Colors.orange,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFEF5350), Color(0xFFE53935)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         onTap: () => _navigateToTab(3),
                       ),
                       _buildMenuCard(
                         icon: Icons.person,
                         title: 'Profil',
-                        subtitle: 'Info akun',
-                        color: Colors.purple,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFAB47BC), Color(0xFF8E24AA)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         onTap: () => _navigateToTab(4),
                       ),
                     ],
@@ -580,7 +619,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Section title
   Widget _buildSectionTitle(String title) {
-    return Text(title, style: Theme.of(context).textTheme.headlineSmall);
+    return Text(
+      title,
+      style: Theme.of(
+        context,
+      ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+    );
   }
 
   // Info chip
@@ -628,48 +672,52 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Menu card dengan gradient
   Widget _buildMenuCard({
     required IconData icon,
     required String title,
-    required String subtitle,
-    required Color color,
+    required Gradient gradient,
     required VoidCallback onTap,
   }) {
     return Card(
-      elevation: 2,
+      elevation: 4,
+      shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 32, color: Colors.white),
                 ),
-                child: Icon(icon, size: 32, color: color),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                textAlign: TextAlign.center,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
