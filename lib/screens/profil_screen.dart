@@ -1,118 +1,209 @@
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
+import '../services/auth_service.dart';
+import '../models/user.dart';
+import 'ganti_password_screen.dart';
+import 'login_screen.dart';
 
-/// Screen Profil - Placeholder untuk fitur profil pengguna
-class ProfilScreen extends StatelessWidget {
+/// Screen Profil - Menampilkan informasi profil pengguna dari backend
+class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
+
+  @override
+  State<ProfilScreen> createState() => _ProfilScreenState();
+}
+
+class _ProfilScreenState extends State<ProfilScreen> {
+  final AuthService _authService = AuthService();
+  User? _user;
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = await _authService.getProfile();
+      setState(() {
+        _user = user;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      body: CustomScrollView(
-        slivers: [
-          // AppBar dengan profil header
-          SliverAppBar(
-            expandedHeight: 240,
-            floating: false,
-            pinned: true,
-            backgroundColor: AppTheme.primaryColor,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
-                  ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+          ? _buildErrorView()
+          : _buildProfileContent(),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: AppTheme.errorColor.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Gagal Memuat Profil',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage ?? 'Terjadi kesalahan',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadUserProfile,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Coba Lagi'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileContent() {
+    if (_user == null) return const SizedBox();
+
+    return CustomScrollView(
+      slivers: [
+        // AppBar dengan profil header
+        SliverAppBar(
+          expandedHeight: 240,
+          floating: false,
+          pinned: true,
+          backgroundColor: AppTheme.primaryColor,
+          flexibleSpace: FlexibleSpaceBar(
+            background: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 40),
-                    // Avatar
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.white,
-                        child: Icon(
-                          Icons.person,
-                          size: 60,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 40),
+                  // Avatar
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.white,
+                      child: Text(
+                        _getInitials(_user!.name),
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
                           color: AppTheme.primaryColor,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    // Nama
-                    const Text(
-                      'Nama Siswa',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Nama
+                  Text(
+                    _user!.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
                     ),
-                    const SizedBox(height: 4),
-                    // NIS
-                    Text(
-                      'NIS: 123456789',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 14,
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Identifier (NIS/NIP)
+                  Text(
+                    '${_user!.role == 'siswa' ? 'NIS' : 'NIP'}: ${_user!.identifier}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 14,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
+        ),
 
-          // Konten utama
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Info Card
-                  _buildInfoCard(),
-                  const SizedBox(height: 16),
+        // Konten utama
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Info Card
+                _buildInfoCard(),
+                const SizedBox(height: 16),
 
-                  // Menu Settings
-                  _buildMenuSection(
-                    title: 'Akun',
-                    items: [
-                      _MenuItem(
-                        icon: Icons.person,
-                        title: 'Edit Profil',
-                        subtitle: 'Ubah informasi profil Anda',
-                      ),
-                      _MenuItem(
-                        icon: Icons.lock,
-                        title: 'Ganti Password',
-                        subtitle: 'Ubah password akun Anda',
-                      ),
-                      _MenuItem(
-                        icon: Icons.notifications,
-                        title: 'Notifikasi',
-                        subtitle: 'Pengaturan notifikasi aplikasi',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                // Menu Settings
+                _buildMenuSection(
+                  title: 'Akun',
+                  items: [
+                    _MenuItem(
+                      icon: Icons.lock,
+                      title: 'Ganti Password',
+                      subtitle: 'Ubah password akun Anda',
+                      onTap: () => _navigateToChangePassword(),
+                    ),
+                    _MenuItem(
+                      icon: Icons.notifications,
+                      title: 'Notifikasi',
+                      subtitle: 'Pengaturan notifikasi aplikasi',
+                      onTap: () => _showComingSoonDialog('Notifikasi'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
 
-                  // Menu Akademik
+                // Menu Akademik (hanya untuk siswa)
+                if (_user!.role == 'siswa') ...[
                   _buildMenuSection(
                     title: 'Akademik',
                     items: [
@@ -120,54 +211,36 @@ class ProfilScreen extends StatelessWidget {
                         icon: Icons.school,
                         title: 'Rapor',
                         subtitle: 'Lihat nilai dan rapor',
+                        onTap: () => _showComingSoonDialog('Rapor'),
                       ),
                       _MenuItem(
                         icon: Icons.history,
                         title: 'Riwayat Absensi',
                         subtitle: 'Lihat riwayat kehadiran',
-                      ),
-                      _MenuItem(
-                        icon: Icons.emoji_events,
-                        title: 'Prestasi',
-                        subtitle: 'Daftar prestasi dan penghargaan',
+                        onTap: () => _showComingSoonDialog('Riwayat Absensi'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // Menu Lainnya
-                  _buildMenuSection(
-                    title: 'Lainnya',
-                    items: [
-                      _MenuItem(
-                        icon: Icons.help,
-                        title: 'Bantuan',
-                        subtitle: 'Pusat bantuan dan FAQ',
-                      ),
-                      _MenuItem(
-                        icon: Icons.info,
-                        title: 'Tentang Aplikasi',
-                        subtitle: 'Informasi versi dan developer',
-                      ),
-                      _MenuItem(
-                        icon: Icons.privacy_tip,
-                        title: 'Kebijakan Privasi',
-                        subtitle: 'Baca kebijakan privasi kami',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Tombol Logout
-                  _buildLogoutButton(context),
-                  const SizedBox(height: 80),
                 ],
-              ),
+
+                // Tombol Logout
+                _buildLogoutButton(context),
+                const SizedBox(height: 80),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
+  }
+
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
   }
 
   Widget _buildInfoCard() {
@@ -188,7 +261,7 @@ class ProfilScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Informasi Siswa',
+            'Informasi Pengguna',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -196,13 +269,23 @@ class ProfilScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _buildInfoRow(Icons.class_, 'Kelas', 'XII RPL 1'),
+          _buildInfoRow(
+            Icons.badge,
+            'Role',
+            _user!.role == 'siswa'
+                ? 'Siswa'
+                : _user!.isWaliKelas
+                ? 'Guru / Wali Kelas'
+                : 'Guru',
+          ),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.email, 'Email', 'siswa@smk.sch.id'),
+          _buildInfoRow(Icons.email, 'Email', _user!.email),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.phone, 'No. HP', '0812-3456-7890'),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.location_on, 'Alamat', 'Jl. Pendidikan No. 123'),
+          _buildInfoRow(
+            Icons.fingerprint,
+            _user!.role == 'siswa' ? 'NIS' : 'NIP',
+            _user!.identifier,
+          ),
         ],
       ),
     );
@@ -284,9 +367,7 @@ class ProfilScreen extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          // TODO: Implementasi navigasi
-        },
+        onTap: item.onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -332,9 +413,7 @@ class ProfilScreen extends StatelessWidget {
       width: double.infinity,
       height: 50,
       child: ElevatedButton.icon(
-        onPressed: () {
-          _showLogoutDialog(context);
-        },
+        onPressed: () => _showLogoutDialog(context),
         icon: const Icon(Icons.logout),
         label: const Text('Keluar'),
         style: ElevatedButton.styleFrom(
@@ -345,6 +424,33 @@ class ProfilScreen extends StatelessWidget {
           ),
           elevation: 2,
         ),
+      ),
+    );
+  }
+
+  void _navigateToChangePassword() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const GantiPasswordScreen()),
+    );
+  }
+
+  void _showComingSoonDialog(String feature) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Segera Hadir',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text('Fitur $feature akan segera tersedia.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -365,14 +471,9 @@ class ProfilScreen extends StatelessWidget {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Fitur logout akan segera tersedia'),
-                  backgroundColor: AppTheme.accentColor,
-                ),
-              );
+            onPressed: () async {
+              Navigator.pop(context); // Tutup dialog
+              await _performLogout();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.errorColor,
@@ -384,6 +485,45 @@ class ProfilScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _performLogout() async {
+    try {
+      // Tampilkan loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      // Lakukan logout
+      await _authService.logout();
+
+      // Tutup loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Navigasi ke halaman login dan hapus semua route sebelumnya
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      // Tutup loading dialog jika ada error
+      if (mounted) Navigator.pop(context);
+
+      // Tampilkan error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal logout: $e'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
+  }
 }
 
 // Helper class untuk menu item
@@ -391,6 +531,12 @@ class _MenuItem {
   final IconData icon;
   final String title;
   final String subtitle;
+  final VoidCallback onTap;
 
-  _MenuItem({required this.icon, required this.title, required this.subtitle});
+  _MenuItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 }

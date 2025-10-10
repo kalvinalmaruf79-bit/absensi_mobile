@@ -1,4 +1,5 @@
 // lib/services/materi_service.dart
+import 'dart:async'; // <-- PERBAIKAN: Import yang ditambahkan
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
@@ -9,35 +10,6 @@ class MateriService {
   final ApiService _apiService = ApiService();
 
   /// Mengambil semua materi untuk siswa (published only, filtered by kelas siswa)
-  ///
-  /// **Endpoint**: `GET /materi/siswa?page=<num>&limit=<num>&mataPelajaranId=<string>`
-  ///
-  /// **Success Response (200)**: Objek Paginasi
-  /// ```json
-  /// {
-  ///   "docs": [
-  ///     {
-  ///       "_id": "string",
-  ///       "judul": "string",
-  ///       "deskripsi": "string",
-  ///       "mataPelajaran": { "nama": "string", "kode": "string" },
-  ///       "kelas": { "nama": "string", "tingkat": "string" },
-  ///       "guru": { "name": "string" },
-  ///       "files": [ ... ],
-  ///       "links": [ ... ],
-  ///       "isPublished": boolean,
-  ///       "createdAt": "ISO_Date_String",
-  ///       "updatedAt": "ISO_Date_String"
-  ///     }
-  ///   ],
-  ///   "totalDocs": int,
-  ///   "limit": int,
-  ///   "page": int,
-  ///   "totalPages": int,
-  ///   "hasNextPage": boolean,
-  ///   "hasPrevPage": boolean
-  /// }
-  /// ```
   Future<Map<String, dynamic>> getMateriSiswa({
     int page = 1,
     int limit = 10,
@@ -69,21 +41,6 @@ class MateriService {
   }
 
   /// Mengambil materi berdasarkan mata pelajaran (with pagination)
-  ///
-  /// **Endpoint**: `GET /materi/mata-pelajaran/:mataPelajaranId?page=<num>&limit=<num>`
-  ///
-  /// **Success Response (200)**: Objek Paginasi
-  /// ```json
-  /// {
-  ///   "docs": [ ... ], // List Objek Materi
-  ///   "totalDocs": int,
-  ///   "limit": int,
-  ///   "page": int,
-  ///   "totalPages": int,
-  ///   "hasNextPage": boolean,
-  ///   "hasPrevPage": boolean
-  /// }
-  /// ```
   Future<Map<String, dynamic>> getMateriByMataPelajaran({
     required String mataPelajaranId,
     int page = 1,
@@ -111,27 +68,6 @@ class MateriService {
   }
 
   /// Mengambil materi berdasarkan kelas dan mata pelajaran
-  ///
-  /// **Endpoint**: `GET /materi?kelasId=<string>&mataPelajaranId=<string>`
-  ///
-  /// **Success Response (200)**: `List<Materi>`
-  /// ```json
-  /// [
-  ///   {
-  ///     "_id": "string",
-  ///     "judul": "string",
-  ///     "deskripsi": "string",
-  ///     "mataPelajaran": { "nama": "string", "kode": "string" },
-  ///     "kelas": { "nama": "string", "tingkat": "string" },
-  ///     "guru": { "name": "string" },
-  ///     "files": [ ... ],
-  ///     "links": [ ... ],
-  ///     "isPublished": boolean,
-  ///     "createdAt": "ISO_Date_String",
-  ///     "updatedAt": "ISO_Date_String"
-  ///   }
-  /// ]
-  /// ```
   Future<List<Materi>> getMateriByKelas({
     required String kelasId,
     required String mataPelajaranId,
@@ -149,38 +85,6 @@ class MateriService {
   }
 
   /// Mengambil detail materi berdasarkan ID
-  ///
-  /// **Endpoint**: `GET /materi/:id`
-  ///
-  /// **Success Response (200)**: Objek Materi lengkap
-  /// ```json
-  /// {
-  ///   "_id": "string",
-  ///   "judul": "string",
-  ///   "deskripsi": "string",
-  ///   "mataPelajaran": { "_id": "string", "nama": "string", "kode": "string" },
-  ///   "kelas": { "_id": "string", "nama": "string", "tingkat": "string" },
-  ///   "guru": { "_id": "string", "name": "string" },
-  ///   "files": [
-  ///     {
-  ///       "fileName": "string",
-  ///       "url": "string",
-  ///       "public_id": "string",
-  ///       "fileType": "string",
-  ///       "uploadedAt": "ISO_Date_String"
-  ///     }
-  ///   ],
-  ///   "links": [
-  ///     {
-  ///       "title": "string",
-  ///       "url": "string"
-  ///     }
-  ///   ],
-  ///   "isPublished": boolean,
-  ///   "createdAt": "ISO_Date_String",
-  ///   "updatedAt": "ISO_Date_String"
-  /// }
-  /// ```
   Future<Materi> getMateriById(String materiId) async {
     try {
       final response = await _apiService.get('materi/$materiId');
@@ -190,51 +94,120 @@ class MateriService {
     }
   }
 
-  /// Download file materi
-  ///
-  /// Method ini akan mendownload file dari URL yang diberikan
-  /// Returns File object yang sudah didownload
+  /// Download file materi dengan retry mechanism
   Future<File> downloadMateriFile({
     required String url,
     required String fileName,
     required String savePath,
+    int maxRetries = 3,
   }) async {
-    try {
-      final token = await _apiService.getToken();
+    int retryCount = 0;
+    Exception? lastException;
 
-      Map<String, String> headers = {};
-      if (token != null && token.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $token';
-      }
+    while (retryCount < maxRetries) {
+      try {
+        print('Download attempt ${retryCount + 1} for: $fileName');
+        print('URL: $url');
+        print('Save path: $savePath/$fileName');
 
-      final response = await http
-          .get(Uri.parse(url), headers: headers)
-          .timeout(
-            const Duration(seconds: 120),
-            onTimeout: () {
-              throw Exception(
-                'Download timeout. Periksa koneksi internet Anda.',
-              );
-            },
+        final token = await _apiService.getToken();
+
+        Map<String, String> headers = {'Accept': '*/*'};
+
+        if (token != null && token.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $token';
+        }
+
+        final response = await http
+            .get(Uri.parse(url), headers: headers)
+            .timeout(
+              const Duration(seconds: 120),
+              onTimeout: () {
+                throw TimeoutException(
+                  'Download timeout. Periksa koneksi internet Anda.',
+                );
+              },
+            );
+
+        print('Response status: ${response.statusCode}');
+        print('Response headers: ${response.headers}');
+
+        if (response.statusCode == 200) {
+          // Pastikan directory exists
+          final directory = Directory(savePath);
+          if (!await directory.exists()) {
+            await directory.create(recursive: true);
+            print('Directory created: $savePath');
+          }
+
+          final file = File('$savePath/$fileName');
+
+          // Write file
+          await file.writeAsBytes(response.bodyBytes);
+
+          // Verify file exists and has content
+          if (await file.exists()) {
+            final fileSize = await file.length();
+            print('File downloaded successfully. Size: $fileSize bytes');
+
+            if (fileSize == 0) {
+              throw Exception('File downloaded but is empty');
+            }
+
+            return file;
+          } else {
+            throw Exception('File was not created');
+          }
+        } else if (response.statusCode == 404) {
+          throw Exception('File tidak ditemukan di server (404)');
+        } else if (response.statusCode == 403) {
+          throw Exception('Akses ditolak. Anda tidak memiliki izin (403)');
+        } else if (response.statusCode == 401) {
+          throw Exception(
+            'Sesi Anda telah berakhir. Silakan login kembali (401)',
           );
+        } else {
+          throw Exception(
+            'Gagal mendownload file. Status: ${response.statusCode}',
+          );
+        }
+      } on SocketException catch (e) {
+        lastException = Exception(
+          'Tidak ada koneksi internet. Periksa koneksi Anda.',
+        );
+        print('SocketException: $e');
+      } on http.ClientException catch (e) {
+        lastException = Exception(
+          'Gagal terhubung ke server. Coba lagi nanti.',
+        );
+        print('ClientException: $e');
+      } on TimeoutException catch (e) {
+        lastException = Exception(
+          'Download timeout. Periksa koneksi internet Anda.',
+        );
+        print('TimeoutException: $e');
+      } on FileSystemException catch (e) {
+        lastException = Exception(
+          'Gagal menyimpan file. Periksa izin penyimpanan.',
+        );
+        print('FileSystemException: $e');
+      } catch (e) {
+        lastException = e is Exception
+            ? e
+            : Exception('Gagal mendownload file: $e');
+        print('Unknown error: $e');
+      }
 
-      if (response.statusCode == 200) {
-        final file = File('$savePath/$fileName');
-        await file.writeAsBytes(response.bodyBytes);
-        return file;
-      } else {
-        throw Exception('Gagal mendownload file (${response.statusCode})');
+      retryCount++;
+      if (retryCount < maxRetries) {
+        print('Retrying in 2 seconds...');
+        await Future.delayed(const Duration(seconds: 2));
       }
-    } on SocketException {
-      throw Exception('Tidak ada koneksi internet. Periksa koneksi Anda.');
-    } on http.ClientException {
-      throw Exception('Gagal terhubung ke server. Coba lagi nanti.');
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
-      }
-      throw Exception('Gagal mendownload file: $e');
     }
+
+    // If all retries failed
+    throw lastException ??
+        Exception('Gagal mendownload file setelah $maxRetries percobaan');
   }
 
   /// Get file size dari URL (untuk preview sebelum download)

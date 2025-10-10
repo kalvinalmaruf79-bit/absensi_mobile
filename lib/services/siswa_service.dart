@@ -145,11 +145,95 @@ class SiswaService {
       final response = await _apiService.get(
         'siswa/nilai?tahunAjaran=$tahunAjaran&semester=$semester',
       );
-      // Mengambil dari 'docs' karena backend menggunakan pagination
       final List<dynamic> data = response['docs'];
       return data.map((json) => Nilai.fromJson(json)).toList();
     } catch (e) {
       throw Exception('Gagal memuat nilai: $e');
+    }
+  }
+
+  /// BARU: Mengambil statistik nilai per mata pelajaran
+  ///
+  /// **Endpoint**: `GET /siswa/nilai/statistik?tahunAjaran=<string>&semester=<string>`
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "tahunAjaran": "string",
+  ///   "semester": "string",
+  ///   "rataRataKeseluruhan": double,
+  ///   "perMataPelajaran": [
+  ///     {
+  ///       "mataPelajaran": { "nama": "string", "kode": "string" },
+  ///       "rataRata": double,
+  ///       "nilaiTertinggi": double,
+  ///       "nilaiTerendah": double,
+  ///       "jumlahPenilaian": int,
+  ///       "jenisNilai": [ ... ]
+  ///     }
+  ///   ]
+  /// }
+  /// ```
+  Future<Map<String, dynamic>> getStatistikNilai(
+    String tahunAjaran,
+    String semester,
+  ) async {
+    try {
+      final response = await _apiService.get(
+        'siswa/nilai/statistik?tahunAjaran=$tahunAjaran&semester=$semester',
+      );
+
+      return {
+        'tahunAjaran': response['tahunAjaran'],
+        'semester': response['semester'],
+        'rataRataKeseluruhan': (response['rataRataKeseluruhan'] as num)
+            .toDouble(),
+        'perMataPelajaran': (response['perMataPelajaran'] as List<dynamic>)
+            .map((item) => StatistikNilai.fromJson(item))
+            .toList(),
+      };
+    } catch (e) {
+      throw Exception('Gagal memuat statistik nilai: $e');
+    }
+  }
+
+  /// BARU: Mengambil ringkasan nilai untuk semua semester
+  ///
+  /// **Endpoint**: `GET /siswa/nilai/ringkasan`
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// [
+  ///   {
+  ///     "tahunAjaran": "string",
+  ///     "semester": "string",
+  ///     "rataRata": double,
+  ///     "jumlahNilai": int
+  ///   }
+  /// ]
+  /// ```
+  Future<List<RingkasanNilai>> getRingkasanNilai() async {
+    try {
+      final response = await _apiService.get('siswa/nilai/ringkasan');
+      final List<dynamic> data = response;
+      return data.map((json) => RingkasanNilai.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Gagal memuat ringkasan nilai: $e');
+    }
+  }
+
+  /// BARU: Mengambil semua nilai (tanpa filter semester)
+  ///
+  /// Berguna untuk melihat seluruh riwayat nilai siswa
+  Future<List<Nilai>> getAllNilai({int page = 1, int limit = 100}) async {
+    try {
+      final response = await _apiService.get(
+        'siswa/nilai?page=$page&limit=$limit',
+      );
+      final List<dynamic> data = response['docs'];
+      return data.map((json) => Nilai.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Gagal memuat semua nilai: $e');
     }
   }
 

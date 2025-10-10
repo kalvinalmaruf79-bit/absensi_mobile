@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
 
 import '../utils/app_theme.dart';
@@ -931,11 +932,73 @@ class _MateriDetailSheet extends StatelessWidget {
     }
   }
 
+  /// Request storage permission dengan support Android 13+
+  Future<bool> _requestStoragePermission(BuildContext context) async {
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+
+      // Android 13+ (API 33+) tidak perlu permission storage
+      if (androidInfo.version.sdkInt >= 33) {
+        return true;
+      }
+
+      // Android 11-12 (API 30-32)
+      if (androidInfo.version.sdkInt >= 30) {
+        final status = await Permission.manageExternalStorage.request();
+        if (status.isGranted) {
+          return true;
+        }
+      }
+
+      // Android 10 dan dibawah (API <= 29)
+      final status = await Permission.storage.request();
+      return status.isGranted;
+    } catch (e) {
+      print('Error requesting permission: $e');
+      return false;
+    }
+  }
+
+  /// Get download directory berdasarkan versi Android
+  Future<Directory?> _getDownloadDirectory() async {
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+
+      // Android 10+ gunakan app-specific directory
+      if (androidInfo.version.sdkInt >= 29) {
+        final directory = await getExternalStorageDirectory();
+        if (directory != null) {
+          final downloadsDir = Directory(
+            '${directory.path}/Downloads/SMKScan/Materi',
+          );
+          if (!await downloadsDir.exists()) {
+            await downloadsDir.create(recursive: true);
+          }
+          return downloadsDir;
+        }
+      } else {
+        // Android 9 dan dibawah
+        final directory = Directory(
+          '/storage/emulated/0/Download/SMKScan/Materi',
+        );
+        if (!await directory.exists()) {
+          await directory.create(recursive: true);
+        }
+        return directory;
+      }
+    } catch (e) {
+      print('Error getting download directory: $e');
+    }
+    return null;
+  }
+
   Future<void> _downloadFile(BuildContext context, MateriFile file) async {
     try {
-      // Request storage permission
-      final status = await Permission.storage.request();
-      if (!status.isGranted) {
+      // Request permission
+      final hasPermission = await _requestStoragePermission(context);
+      if (!hasPermission) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -950,44 +1013,64 @@ class _MateriDetailSheet extends StatelessWidget {
       // Show loading
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Row(
               children: [
-                CircularProgressIndicator(color: Colors.white),
-                SizedBox(width: 16),
-                Text('Mengunduh file...'),
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(child: Text('Mengunduh ${file.fileName}...')),
               ],
             ),
-            duration: Duration(hours: 1),
+            duration: const Duration(hours: 1),
           ),
         );
       }
 
       // Get download directory
-      final directory = await getExternalStorageDirectory();
-      final savePath = '${directory!.path}/SMKScan/Materi';
-      final dir = Directory(savePath);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
+      final directory = await _getDownloadDirectory();
+      if (directory == null) {
+        throw Exception('Tidak dapat mengakses folder download');
       }
 
       // Download file
       final downloadedFile = await materiService.downloadMateriFile(
         url: file.url,
         fileName: file.fileName,
-        savePath: savePath,
+        savePath: directory.path,
       );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('File berhasil diunduh ke: ${downloadedFile.path}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'File berhasil diunduh!',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Lokasi: ${directory.path}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
             backgroundColor: AppTheme.successColor,
+            duration: const Duration(seconds: 4),
             action: SnackBarAction(
               label: 'Buka',
               textColor: Colors.white,
-              onPressed: () => _openFile(downloadedFile.path),
+              onPressed: () => _openFile(context, downloadedFile.path),
             ),
           ),
         );
@@ -999,15 +1082,32 @@ class _MateriDetailSheet extends StatelessWidget {
           SnackBar(
             content: Text('Gagal mengunduh: ${e.toString()}'),
             backgroundColor: AppTheme.errorColor,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     }
   }
 
-  Future<void> _openFile(String filePath) async {
-    // TODO: Implement file opening with appropriate viewer
-    // You can use packages like open_file or flutter_file_view
+  Future<void> _openFile(BuildContext context, String filePath) async {
+    try {
+      final uri = Uri.file(filePath);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Tidak dapat membuka file';
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('File tersimpan di: $filePath'),
+            backgroundColor: AppTheme.primaryColor,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _openLink(BuildContext context, String url) async {
