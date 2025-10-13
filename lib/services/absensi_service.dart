@@ -1,3 +1,4 @@
+// lib/services/absensi_service.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -14,7 +15,7 @@ class AbsensiService {
     return prefs.getString('token');
   }
 
-  /// Mengirim data check-in presensi berdasarkan kode sesi QR.
+  /// Mengirim data check-in presensi berdasarkan kode sesi QR dengan lokasi.
   ///
   /// **Endpoint**: `POST /absensi/check-in`
   ///
@@ -34,12 +35,10 @@ class AbsensiService {
   /// }
   /// ```
   ///
-  /// **Error Response (400/403/500)**:
-  /// ```json
-  /// {
-  ///   "message": "Pesan error spesifik (misal: kode tidak valid, di luar radius, dll)"
-  /// }
-  /// ```
+  /// **Error Responses**:
+  /// - 400: Kode sesi tidak valid atau sudah kedaluwarsa
+  /// - 400: Sudah melakukan presensi (termasuk konflik izin/sakit)
+  /// - 403: Tidak terdaftar di kelas atau di luar radius
   Future<String> checkIn(
     String kodeSesi,
     double latitude,
@@ -61,13 +60,107 @@ class AbsensiService {
       );
 
       final body = jsonDecode(response.body);
+
+      // Handle berbagai status code dengan pesan yang spesifik
       if (response.statusCode == 200) {
-        return body['message'];
+        return body['message'] ?? 'Presensi berhasil!';
+      } else if (response.statusCode == 400) {
+        // Konflik absensi atau kode tidak valid
+        throw AbsensiException(
+          body['message'] ?? 'Gagal melakukan presensi',
+          statusCode: 400,
+        );
+      } else if (response.statusCode == 403) {
+        // Di luar radius atau tidak terdaftar di kelas
+        throw AbsensiException(
+          body['message'] ?? 'Akses ditolak',
+          statusCode: 403,
+        );
       } else {
-        throw Exception(body['message'] ?? 'Gagal melakukan presensi');
+        throw AbsensiException(
+          body['message'] ?? 'Gagal melakukan presensi',
+          statusCode: response.statusCode,
+        );
       }
+    } on SocketException {
+      throw AbsensiException(
+        'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+      );
+    } on FormatException {
+      throw AbsensiException('Format data tidak valid dari server.');
     } catch (e) {
-      throw Exception('Gagal terhubung ke server: $e');
+      if (e is AbsensiException) rethrow;
+      throw AbsensiException('Terjadi kesalahan: ${e.toString()}');
+    }
+  }
+
+  /// Mengirim data check-in presensi berdasarkan kode absen manual (tanpa lokasi).
+  /// Untuk siswa yang tidak bisa scan QR code.
+  ///
+  /// **Endpoint**: `POST /absensi/check-in-code`
+  ///
+  /// **Request Body**:
+  /// ```json
+  /// {
+  ///   "kodeAbsen": "string"
+  /// }
+  /// ```
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "message": "Presensi berhasil!"
+  /// }
+  /// ```
+  ///
+  /// **Error Responses**:
+  /// - 400: Kode absen tidak valid atau sudah kedaluwarsa
+  /// - 400: Sudah melakukan presensi (termasuk konflik izin/sakit)
+  /// - 403: Tidak terdaftar di kelas
+  Future<String> checkInWithCode(String kodeAbsen) async {
+    try {
+      final token = await _getToken();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/absensi/check-in-code'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'kodeAbsen': kodeAbsen}),
+      );
+
+      final body = jsonDecode(response.body);
+
+      // Handle berbagai status code dengan pesan yang spesifik
+      if (response.statusCode == 200) {
+        return body['message'] ?? 'Presensi berhasil!';
+      } else if (response.statusCode == 400) {
+        // Konflik absensi atau kode tidak valid
+        throw AbsensiException(
+          body['message'] ?? 'Gagal melakukan presensi',
+          statusCode: 400,
+        );
+      } else if (response.statusCode == 403) {
+        // Tidak terdaftar di kelas
+        throw AbsensiException(
+          body['message'] ?? 'Akses ditolak',
+          statusCode: 403,
+        );
+      } else {
+        throw AbsensiException(
+          body['message'] ?? 'Gagal melakukan presensi',
+          statusCode: response.statusCode,
+        );
+      }
+    } on SocketException {
+      throw AbsensiException(
+        'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+      );
+    } on FormatException {
+      throw AbsensiException('Format data tidak valid dari server.');
+    } catch (e) {
+      if (e is AbsensiException) rethrow;
+      throw AbsensiException('Terjadi kesalahan: ${e.toString()}');
     }
   }
 
@@ -86,14 +179,7 @@ class AbsensiService {
   /// ```json
   /// {
   ///   "message": "Pengajuan berhasil dikirim.",
-  ///   "data": { ... } // Objek pengajuan yang baru dibuat
-  /// }
-  /// ```
-  ///
-  /// **Error Response (400/500)**:
-  /// ```json
-  /// {
-  ///   "message": "Pesan error spesifik"
+  ///   "data": { ... }
   /// }
   /// ```
   Future<String> createPengajuan({
@@ -127,12 +213,25 @@ class AbsensiService {
       final body = jsonDecode(response.body);
 
       if (response.statusCode == 201) {
-        return body['message'];
+        return body['message'] ?? 'Pengajuan berhasil dikirim';
+      } else if (response.statusCode == 400) {
+        throw AbsensiException(
+          body['message'] ?? 'Data pengajuan tidak valid',
+          statusCode: 400,
+        );
       } else {
-        throw Exception(body['message'] ?? 'Gagal membuat pengajuan');
+        throw AbsensiException(
+          body['message'] ?? 'Gagal membuat pengajuan',
+          statusCode: response.statusCode,
+        );
       }
+    } on SocketException {
+      throw AbsensiException(
+        'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+      );
     } catch (e) {
-      throw Exception('Gagal terhubung ke server: $e');
+      if (e is AbsensiException) rethrow;
+      throw AbsensiException('Terjadi kesalahan: ${e.toString()}');
     }
   }
 
@@ -141,27 +240,6 @@ class AbsensiService {
   /// **Endpoint**: `GET /absensi/pengajuan/riwayat-saya`
   ///
   /// **Success Response (200)**: `List<PengajuanAbsensi>`
-  /// ```json
-  /// [
-  ///   {
-  ///     "_id": "string",
-  ///     "tanggal": "YYYY-MM-DD",
-  ///     "keterangan": "string",
-  ///     "alasan": "string",
-  ///     "status": "string ('pending', 'disetujui', 'ditolak')",
-  ///     "jadwalTerkait": [ ... ],
-  ///     "fileBukti": { "url": "string", "public_id": "string" },
-  ///     "ditinjauOleh": { "name": "string" }
-  ///   }
-  /// ]
-  /// ```
-  ///
-  /// **Error Response (500)**:
-  /// ```json
-  /// {
-  ///   "message": "Gagal mengambil riwayat pengajuan."
-  /// }
-  /// ```
   Future<List<PengajuanAbsensi>> getRiwayatPengajuan() async {
     try {
       final token = await _getToken();
@@ -170,15 +248,23 @@ class AbsensiService {
         headers: {'Authorization': 'Bearer $token'},
       );
 
-      final body = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        final List<dynamic> data = body;
+        final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => PengajuanAbsensi.fromJson(json)).toList();
       } else {
-        throw Exception(body['message'] ?? 'Gagal memuat riwayat');
+        final body = jsonDecode(response.body);
+        throw AbsensiException(
+          body['message'] ?? 'Gagal memuat riwayat pengajuan',
+          statusCode: response.statusCode,
+        );
       }
+    } on SocketException {
+      throw AbsensiException(
+        'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+      );
     } catch (e) {
-      throw Exception('Gagal terhubung ke server: $e');
+      if (e is AbsensiException) rethrow;
+      throw AbsensiException('Terjadi kesalahan: ${e.toString()}');
     }
   }
 
@@ -186,53 +272,105 @@ class AbsensiService {
   ///
   /// **Endpoint**: `GET /siswa/presensi?page=<num>&limit=<num>`
   ///
-  /// **Success Response (200)**: Objek Paginasi
-  /// ```json
-  /// {
-  ///   "docs": [
-  ///     {
-  ///       "_id": "string",
-  ///       "keterangan": "string ('hadir', 'sakit', 'izin', 'alpa')",
-  ///       "waktuMasuk": "ISO_Date_String | null",
-  ///       "tanggal": "YYYY-MM-DD",
-  ///       "jadwal": { ... } // Objek jadwal
-  ///     }
-  ///   ],
-  ///   "totalDocs": int,
-  ///   "limit": int,
-  ///   "totalPages": int,
-  ///   "page": int,
-  ///   ...
-  /// }
-  /// ```
+  /// **Success Response (200)**: Objek Paginasi dengan `docs` berisi `List<Absensi>`
   ///
-  /// **Error Response (500)**:
-  /// ```json
-  /// {
-  ///   "message": "Gagal memuat riwayat presensi"
-  /// }
-  /// ```
-  Future<List<Absensi>> getRiwayatPresensi({
+  /// **Returns**: Tuple (List<Absensi>, totalPages, currentPage)
+  Future<AbsensiPaginatedResponse> getRiwayatPresensi({
     int page = 1,
     int limit = 15,
   }) async {
     try {
       final token = await _getToken();
       final response = await http.get(
-        // Endpoint ini ada di siswaController, bukan absensiController
         Uri.parse('$_baseUrl/siswa/presensi?page=$page&limit=$limit'),
         headers: {'Authorization': 'Bearer $token'},
       );
 
-      final body = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        final List<dynamic> data = body['docs'];
-        return data.map((json) => Absensi.fromJson(json)).toList();
+        final body = jsonDecode(response.body);
+        final List<dynamic> docs = body['docs'] ?? [];
+        final List<Absensi> absensiList = docs
+            .map((json) => Absensi.fromJson(json))
+            .toList();
+
+        return AbsensiPaginatedResponse(
+          docs: absensiList,
+          totalDocs: body['totalDocs'] ?? 0,
+          limit: body['limit'] ?? limit,
+          totalPages: body['totalPages'] ?? 1,
+          page: body['page'] ?? page,
+          hasNextPage: body['hasNextPage'] ?? false,
+          hasPrevPage: body['hasPrevPage'] ?? false,
+        );
       } else {
-        throw Exception(body['message'] ?? 'Gagal memuat riwayat presensi');
+        final body = jsonDecode(response.body);
+        throw AbsensiException(
+          body['message'] ?? 'Gagal memuat riwayat presensi',
+          statusCode: response.statusCode,
+        );
       }
+    } on SocketException {
+      throw AbsensiException(
+        'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+      );
     } catch (e) {
-      throw Exception('Gagal terhubung ke server: $e');
+      if (e is AbsensiException) rethrow;
+      throw AbsensiException('Terjadi kesalahan: ${e.toString()}');
     }
   }
+
+  /// Helper: Get simple list for backward compatibility
+  Future<List<Absensi>> getRiwayatPresensiList({
+    int page = 1,
+    int limit = 15,
+  }) async {
+    final response = await getRiwayatPresensi(page: page, limit: limit);
+    return response.docs;
+  }
+}
+
+// Custom exception untuk error handling yang lebih baik
+class AbsensiException implements Exception {
+  final String message;
+  final int? statusCode;
+
+  AbsensiException(this.message, {this.statusCode});
+
+  @override
+  String toString() => message;
+
+  // Helper untuk UI
+  bool get isNetworkError => statusCode == null;
+  bool get isValidationError => statusCode == 400;
+  bool get isAuthError => statusCode == 401;
+  bool get isForbiddenError => statusCode == 403;
+  bool get isNotFoundError => statusCode == 404;
+  bool get isServerError => statusCode != null && statusCode! >= 500;
+}
+
+// Model untuk paginated response
+class AbsensiPaginatedResponse {
+  final List<Absensi> docs;
+  final int totalDocs;
+  final int limit;
+  final int totalPages;
+  final int page;
+  final bool hasNextPage;
+  final bool hasPrevPage;
+
+  AbsensiPaginatedResponse({
+    required this.docs,
+    required this.totalDocs,
+    required this.limit,
+    required this.totalPages,
+    required this.page,
+    required this.hasNextPage,
+    required this.hasPrevPage,
+  });
+
+  // Helpers
+  int get nextPage => hasNextPage ? page + 1 : page;
+  int get prevPage => hasPrevPage ? page - 1 : page;
+  bool get isEmpty => docs.isEmpty;
+  int get itemCount => docs.length;
 }

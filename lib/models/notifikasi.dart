@@ -1,3 +1,4 @@
+// lib/models/notifikasi.dart
 class Notifikasi {
   final String id;
   final String tipe;

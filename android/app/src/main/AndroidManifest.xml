@@ -3,6 +3,15 @@
     <!-- Internet Permission -->
     <uses-permission android:name="android.permission.INTERNET" />
     
+    <!-- ==================== LOCATION PERMISSIONS ==================== -->
+    <!-- CRITICAL: Diperlukan untuk fitur presensi berbasis lokasi -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    
+    <!-- Background Location (Opsional, jika butuh tracking background) -->
+    <!-- Uncomment jika butuh akses lokasi saat app di background -->
+    <!-- <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" /> -->
+    
     <!-- Storage Permissions untuk Android 12 dan dibawahnya -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -15,6 +24,10 @@
     
     <!-- Camera Permission (untuk fitur scan absensi) -->
     <uses-permission android:name="android.permission.CAMERA" />
+    
+    <!-- Features Declaration -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     
     <application
         android:label="absensi_mobile"
