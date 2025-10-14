@@ -588,28 +588,112 @@ class _MateriScreenState extends State<MateriScreen> {
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: _selectedMataPelajaranId,
-                    decoration: const InputDecoration(
-                      hintText: 'Semua Mata Pelajaran',
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('Semua Mata Pelajaran'),
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                        width: 1.5,
                       ),
-                      ..._mataPelajaranList.map((mapel) {
-                        return DropdownMenuItem(
-                          value: mapel.id,
-                          child: Text(mapel.nama),
-                        );
-                      }),
-                    ],
-                    onChanged: (value) {
-                      setModalState(() {
-                        _selectedMataPelajaranId = value;
-                      });
-                    },
+                    ),
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedMataPelajaranId,
+                      decoration: InputDecoration(
+                        hintText: 'Semua Mata Pelajaran',
+                        hintStyle: TextStyle(color: Colors.grey[500]),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      dropdownColor: Colors.white,
+                      style: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      icon: Icon(
+                        Icons.arrow_drop_down,
+                        color: AppTheme.primaryColor,
+                      ),
+                      selectedItemBuilder: (BuildContext context) {
+                        return [
+                          const Text('Semua Mata Pelajaran'),
+                          ..._mataPelajaranList.map(
+                            (mapel) => Text(mapel.nama),
+                          ),
+                        ];
+                      },
+                      items: [
+                        DropdownMenuItem<String>(
+                          value: null,
+                          child: Row(
+                            children: [
+                              if (_selectedMataPelajaranId == null)
+                                Icon(
+                                  Icons.check_circle,
+                                  color: AppTheme.primaryColor,
+                                  size: 20,
+                                ),
+                              if (_selectedMataPelajaranId == null)
+                                const SizedBox(width: 8),
+                              Text(
+                                'Semua Mata Pelajaran',
+                                style: TextStyle(
+                                  color: _selectedMataPelajaranId == null
+                                      ? AppTheme.primaryColor
+                                      : Colors.black87,
+                                  fontWeight: _selectedMataPelajaranId == null
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ..._mataPelajaranList.map((mapel) {
+                          final isSelected =
+                              _selectedMataPelajaranId == mapel.id;
+                          return DropdownMenuItem<String>(
+                            value: mapel.id,
+                            child: Row(
+                              children: [
+                                if (isSelected)
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: AppTheme.primaryColor,
+                                    size: 20,
+                                  ),
+                                if (isSelected) const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    mapel.nama,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? AppTheme.primaryColor
+                                          : Colors.black87,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                      onChanged: (value) {
+                        setModalState(() {
+                          _selectedMataPelajaranId = value;
+                        });
+                      },
+                    ),
                   ),
                   const SizedBox(height: 24),
                   // Sort By
@@ -622,8 +706,24 @@ class _MateriScreenState extends State<MateriScreen> {
                     spacing: 8,
                     children: [
                       ChoiceChip(
-                        label: const Text('Terbaru'),
+                        label: Text(
+                          'Terbaru',
+                          style: TextStyle(
+                            color: _sortBy == 'terbaru'
+                                ? Colors.white
+                                : AppTheme.primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         selected: _sortBy == 'terbaru',
+                        selectedColor: AppTheme.primaryColor,
+                        backgroundColor: AppTheme.primaryColor.withValues(
+                          alpha: 0.1,
+                        ),
+                        side: BorderSide(
+                          color: AppTheme.primaryColor,
+                          width: 1.5,
+                        ),
                         onSelected: (selected) {
                           setModalState(() {
                             _sortBy = 'terbaru';
@@ -631,8 +731,24 @@ class _MateriScreenState extends State<MateriScreen> {
                         },
                       ),
                       ChoiceChip(
-                        label: const Text('Terlama'),
+                        label: Text(
+                          'Terlama',
+                          style: TextStyle(
+                            color: _sortBy == 'terlama'
+                                ? Colors.white
+                                : AppTheme.primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         selected: _sortBy == 'terlama',
+                        selectedColor: AppTheme.primaryColor,
+                        backgroundColor: AppTheme.primaryColor.withValues(
+                          alpha: 0.1,
+                        ),
+                        side: BorderSide(
+                          color: AppTheme.primaryColor,
+                          width: 1.5,
+                        ),
                         onSelected: (selected) {
                           setModalState(() {
                             _sortBy = 'terlama';
@@ -640,8 +756,24 @@ class _MateriScreenState extends State<MateriScreen> {
                         },
                       ),
                       ChoiceChip(
-                        label: const Text('Nama A-Z'),
+                        label: Text(
+                          'Nama A-Z',
+                          style: TextStyle(
+                            color: _sortBy == 'nama'
+                                ? Colors.white
+                                : AppTheme.primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         selected: _sortBy == 'nama',
+                        selectedColor: AppTheme.primaryColor,
+                        backgroundColor: AppTheme.primaryColor.withValues(
+                          alpha: 0.1,
+                        ),
+                        side: BorderSide(
+                          color: AppTheme.primaryColor,
+                          width: 1.5,
+                        ),
                         onSelected: (selected) {
                           setModalState(() {
                             _sortBy = 'nama';

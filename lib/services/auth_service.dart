@@ -1,3 +1,4 @@
+// lib/services/auth_service.dart
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import '../models/user.dart';
@@ -8,37 +9,6 @@ class AuthService {
   /// Mengotentikasi pengguna dan menyimpan token.
   ///
   /// **Endpoint**: `POST /auth/login`
-  ///
-  /// **Request Body**:
-  /// ```json
-  /// {
-  ///   "identifier": "<NIS atau NIP>",
-  ///   "password": "<Password Pengguna>"
-  /// }
-  /// ```
-  ///
-  /// **Success Response (200)**:
-  /// ```json
-  /// {
-  ///   "message": "Login berhasil",
-  ///   "token": "<JWT Token>",
-  ///   "user": {
-  ///     "_id": "string",
-  ///     "name": "string",
-  ///     "email": "string",
-  ///     "identifier": "string",
-  ///     "role": "string ('siswa' atau 'guru')",
-  ///     "isWaliKelas": boolean
-  ///   }
-  /// }
-  /// ```
-  ///
-  /// **Error Response (400/500)**:
-  /// ```json
-  /// {
-  ///   "message": "Pesan error spesifik"
-  /// }
-  /// ```
   Future<User> login(String identifier, String password) async {
     try {
       final response = await _apiService.postLogin('auth/login', {
@@ -49,8 +19,6 @@ class AuthService {
       if (response['token'] != null && response['user'] != null) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', response['token']);
-
-        // Simpan data user sederhana jika perlu
         await prefs.setString('userId', response['user']['_id']);
         await prefs.setString('userName', response['user']['name']);
 
@@ -80,27 +48,6 @@ class AuthService {
   /// Mengambil data profil pengguna yang sedang login.
   ///
   /// **Endpoint**: `GET /auth/profile`
-  ///
-  /// **Success Response (200)**:
-  /// ```json
-  /// {
-  ///   "_id": "string",
-  ///   "name": "string",
-  ///   "email": "string",
-  ///   "identifier": "string",
-  ///   "role": "string",
-  ///   "isWaliKelas": boolean,
-  ///   "kelas": { "_id": "string", "nama": "string", ... }, // jika siswa
-  ///   "mataPelajaran": [ { "_id": "string", "nama": "string", ... } ] // jika guru
-  /// }
-  /// ```
-  ///
-  /// **Error Response (404/500)**:
-  /// ```json
-  /// {
-  ///   "message": "User tidak ditemukan"
-  /// }
-  /// ```
   Future<User> getProfile() async {
     try {
       final response = await _apiService.get('auth/profile');
@@ -113,28 +60,6 @@ class AuthService {
   /// Mengubah password pengguna yang sedang login.
   ///
   /// **Endpoint**: `PUT /auth/change-password`
-  ///
-  /// **Request Body**:
-  /// ```json
-  /// {
-  ///   "oldPassword": "<Password Lama>",
-  ///   "newPassword": "<Password Baru>"
-  /// }
-  /// ```
-  ///
-  /// **Success Response (200)**:
-  /// ```json
-  /// {
-  ///   "message": "Password berhasil diganti"
-  /// }
-  /// ```
-  ///
-  /// **Error Response (400/500)**:
-  /// ```json
-  /// {
-  ///   "message": "Password lama salah"
-  /// }
-  /// ```
   Future<String> changePassword(String oldPassword, String newPassword) async {
     try {
       final response = await _apiService.put('auth/change-password', {
@@ -144,6 +69,106 @@ class AuthService {
       return response['message'];
     } catch (e) {
       throw Exception('Gagal mengubah password: $e');
+    }
+  }
+
+  /// Mengirim permintaan kode verifikasi reset password ke email pengguna.
+  ///
+  /// **Endpoint**: `POST /auth/forgot-password`
+  ///
+  /// **Request Body**:
+  /// ```json
+  /// {
+  ///   "email": "<Email Pengguna>"
+  /// }
+  /// ```
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "message": "Kode verifikasi telah berhasil dikirim ke email Anda."
+  /// }
+  /// ```
+  Future<String> forgotPassword(String email) async {
+    try {
+      final response = await _apiService.postLogin('auth/forgot-password', {
+        'email': email,
+      });
+      return response['message'] ??
+          'Kode verifikasi telah dikirim ke email Anda.';
+    } catch (e) {
+      throw Exception('Gagal mengirim kode verifikasi: $e');
+    }
+  }
+
+  /// Memverifikasi kode reset password 6 digit.
+  ///
+  /// **Endpoint**: `POST /auth/verify-reset-code`
+  ///
+  /// **Request Body**:
+  /// ```json
+  /// {
+  ///   "code": "<Kode 6 Digit>"
+  /// }
+  /// ```
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "message": "Kode verifikasi valid.",
+  ///   "tempToken": "<Temporary Token>"
+  /// }
+  /// ```
+  ///
+  /// **Error Response (400)**:
+  /// ```json
+  /// {
+  ///   "message": "Kode verifikasi tidak valid atau sudah kedaluwarsa."
+  /// }
+  /// ```
+  Future<String> verifyResetCode(String code) async {
+    try {
+      final response = await _apiService.postLogin('auth/verify-reset-code', {
+        'code': code,
+      });
+
+      if (response['tempToken'] != null) {
+        return response['tempToken'];
+      } else {
+        throw Exception('Token tidak diterima dari server.');
+      }
+    } catch (e) {
+      throw Exception('Kode tidak valid atau sudah kedaluwarsa: $e');
+    }
+  }
+
+  /// Mereset password pengguna menggunakan temporary token.
+  ///
+  /// **Endpoint**: `POST /auth/reset-password`
+  ///
+  /// **Request Body**:
+  /// ```json
+  /// {
+  ///   "tempToken": "<Temporary Token>",
+  ///   "password": "<Password Baru>"
+  /// }
+  /// ```
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "message": "Password berhasil direset."
+  /// }
+  /// ```
+  Future<String> resetPassword(String tempToken, String newPassword) async {
+    try {
+      final response = await _apiService.postLogin('auth/reset-password', {
+        'tempToken': tempToken,
+        'password': newPassword,
+      });
+      return response['message'] ?? 'Password berhasil direset.';
+    } catch (e) {
+      throw Exception('Gagal mereset password: $e');
     }
   }
 }

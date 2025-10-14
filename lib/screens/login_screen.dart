@@ -2,8 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
-import '../services/notification_service.dart'; // TAMBAHAN: Import NotificationService
+import '../services/notification_service.dart';
 import 'main_navigation.dart';
+import 'forgot_password_screen.dart'; // TAMBAHAN: Import ForgotPasswordScreen
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -65,27 +66,23 @@ class _LoginScreenState extends State<LoginScreen>
       });
 
       try {
-        // Login ke server
         await _authService.login(
           _identifierController.text,
           _passwordController.text,
         );
 
-        // PERBAIKAN: Sync device token setelah login berhasil
         print('✅ Login berhasil, melakukan sync device token...');
         try {
           await NotificationService.syncDevice();
           print('✅ Device token berhasil di-sync');
         } catch (syncError) {
-          // Jangan gagalkan login jika sync gagal, hanya log error
           print('⚠️ Gagal sync device token: $syncError');
         }
 
         if (mounted) {
-          // Navigasi ke MainNavigation dengan pushAndRemoveUntil
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const MainNavigation()),
-            (Route<dynamic> route) => false, // Hapus semua route sebelumnya
+            (Route<dynamic> route) => false,
           );
         }
       } catch (e) {
@@ -327,7 +324,32 @@ class _LoginScreenState extends State<LoginScreen>
                                 },
                               ),
 
-                              const SizedBox(height: 12),
+                              // TAMBAHAN: Tombol Lupa Password
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const ForgotPasswordScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    'Lupa Password?',
+                                    style: GoogleFonts.poppins(
+                                      color: const Color(0xFF005f8b),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 6),
 
                               // Error Message
                               if (_errorMessage != null)
@@ -362,7 +384,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                 ),
 
-                              const SizedBox(height: 32),
+                              const SizedBox(height: 6),
 
                               // Tombol Login
                               _isLoading
