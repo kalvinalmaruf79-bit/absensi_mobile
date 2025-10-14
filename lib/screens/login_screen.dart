@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
-import 'main_navigation.dart'; // Update: Import MainNavigation
+import '../services/notification_service.dart'; // TAMBAHAN: Import NotificationService
+import 'main_navigation.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -64,14 +65,24 @@ class _LoginScreenState extends State<LoginScreen>
       });
 
       try {
-        // Login tanpa menyimpan user ke variabel karena tidak digunakan
+        // Login ke server
         await _authService.login(
           _identifierController.text,
           _passwordController.text,
         );
 
+        // PERBAIKAN: Sync device token setelah login berhasil
+        print('✅ Login berhasil, melakukan sync device token...');
+        try {
+          await NotificationService.syncDevice();
+          print('✅ Device token berhasil di-sync');
+        } catch (syncError) {
+          // Jangan gagalkan login jika sync gagal, hanya log error
+          print('⚠️ Gagal sync device token: $syncError');
+        }
+
         if (mounted) {
-          // Update: Navigasi ke MainNavigation dengan pushAndRemoveUntil
+          // Navigasi ke MainNavigation dengan pushAndRemoveUntil
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const MainNavigation()),
             (Route<dynamic> route) => false, // Hapus semua route sebelumnya

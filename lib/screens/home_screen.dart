@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/siswa_service.dart';
 import '../models/user.dart';
+import '../models/pengumuman.dart';
 import '../utils/app_theme.dart';
 import 'login_screen.dart';
 import 'nilai_screen.dart';
 import 'materi_screen.dart';
 import 'notifikasi_screen.dart';
+import 'pengumuman_screen.dart';
+import 'riwayat_absensi_screen.dart'; // TAMBAHKAN INI
 
 class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -24,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<User>? _userFuture;
   Future<Map<String, dynamic>>? _dashboardFuture;
+  Future<List<Pengumuman>>? _pengumumanFuture;
   int _unreadNotificationCount = 0;
 
   @override
@@ -37,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _userFuture = _authService.getProfile();
       _dashboardFuture = _siswaService.getDashboard();
+      _pengumumanFuture = _siswaService.getPengumuman();
     });
   }
 
@@ -50,14 +55,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _unreadNotificationCount = notifications.where((n) => !n.isRead).length;
       });
     } catch (e) {
-      // Gagal load notifikasi, set ke 0
       setState(() {
         _unreadNotificationCount = 0;
       });
     }
   }
 
-  // Handle saat token terbukti tidak valid (401 Unauthorized)
   Future<void> _handleUnauthorized() async {
     await _authService.logout();
 
@@ -79,24 +82,36 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Navigasi ke tab tertentu di MainNavigation
   void _navigateToTab(int tabIndex) {
     if (widget.onNavigateToTab != null) {
       widget.onNavigateToTab!(tabIndex);
     }
   }
 
-  // Navigasi ke halaman notifikasi
   void _navigateToNotifications() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const NotifikasiScreen()),
     );
 
-    // Refresh notification count setelah kembali dari halaman notifikasi
     if (result == true) {
       _loadNotificationCount();
     }
+  }
+
+  void _navigateToPengumuman() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PengumumanScreen()),
+    );
+  }
+
+  // TAMBAHKAN METHOD INI
+  void _navigateToRiwayatAbsensi() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const RiwayatAbsensiScreen()),
+    );
   }
 
   @override
@@ -131,7 +146,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget untuk tampilan error
   Widget _buildErrorView(String errorMessage) {
     return Center(
       child: Padding(
@@ -163,7 +177,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget untuk konten home
   Widget _buildHomeContent(User currentUser) {
     return RefreshIndicator(
       onRefresh: () async {
@@ -172,158 +185,45 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: CustomScrollView(
         slivers: [
-          // Header Section dengan notifikasi
-          _buildEnhancedHeader(currentUser),
-          // Dashboard Content
+          _buildCompactHeader(currentUser),
           SliverToBoxAdapter(
-            child: FutureBuilder<Map<String, dynamic>>(
-              future: _dashboardFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.all(32.0),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
+            child: Column(
+              children: [
+                _buildCompactMenuSection(),
+                FutureBuilder<Map<String, dynamic>>(
+                  future: _dashboardFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
 
-                if (snapshot.hasError) {
-                  final error = snapshot.error.toString();
-                  if (error.contains('401')) {
-                    WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => _handleUnauthorized(),
-                    );
+                    if (snapshot.hasError) {
+                      final error = snapshot.error.toString();
+                      if (error.contains('401')) {
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _handleUnauthorized(),
+                        );
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: _buildErrorCard(error),
+                      );
+                    }
+
+                    if (snapshot.hasData) {
+                      return _buildDashboardContent(snapshot.data!);
+                    }
+
                     return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: _buildErrorCard(error),
-                  );
-                }
-
-                if (snapshot.hasData) {
-                  return _buildDashboardContent(snapshot.data!);
-                }
-
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-          // Menu Utama Section
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 4,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Menu Utama',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primaryColor,
-                            ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.85,
-                    children: [
-                      _buildMenuCard(
-                        icon: Icons.book_outlined,
-                        title: 'Materi',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF26A69A), Color(0xFF00897B)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const MateriScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        icon: Icons.grade,
-                        title: 'Nilai',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFF7043), Color(0xFFE64A19)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const NilaiScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        icon: Icons.qr_code_scanner,
-                        title: 'Presensi',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF42A5F5), Color(0xFF1E88E5)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        onTap: () => _navigateToTab(1),
-                      ),
-                      _buildMenuCard(
-                        icon: Icons.calendar_today,
-                        title: 'Jadwal',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF66BB6A), Color(0xFF43A047)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        onTap: () => _navigateToTab(2),
-                      ),
-                      _buildMenuCard(
-                        icon: Icons.assignment,
-                        title: 'Tugas',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFEF5350), Color(0xFFE53935)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        onTap: () => _navigateToTab(3),
-                      ),
-                      _buildMenuCard(
-                        icon: Icons.person,
-                        title: 'Profil',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFAB47BC), Color(0xFF8E24AA)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        onTap: () => _navigateToTab(4),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                ],
-              ),
+                  },
+                ),
+                _buildPengumumanSection(),
+                const SizedBox(height: 24),
+              ],
             ),
           ),
         ],
@@ -331,10 +231,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Enhanced Header dengan layout yang lebih baik dan tombol notifikasi
-  Widget _buildEnhancedHeader(User currentUser) {
+  Widget _buildCompactHeader(User currentUser) {
     return SliverAppBar(
-      expandedHeight: 200.0,
+      expandedHeight: 140.0,
       floating: false,
       pinned: true,
       backgroundColor: AppTheme.primaryColor,
@@ -349,17 +248,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Header dengan greeting dan notifikasi
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Bagian kiri: Greeting
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -368,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               _getGreeting(),
                               style: const TextStyle(
                                 color: Colors.white70,
-                                fontSize: 14,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w400,
                               ),
                             ),
@@ -377,7 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               currentUser.name,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 24,
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 height: 1.2,
                               ),
@@ -387,24 +284,23 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
-                      // Bagian kanan: Tombol Notifikasi
                       Container(
                         margin: const EdgeInsets.only(left: 12),
                         child: Material(
                           color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           child: InkWell(
                             onTap: _navigateToNotifications,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                             child: Container(
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(10),
                               child: Stack(
                                 clipBehavior: Clip.none,
                                 children: [
                                   const Icon(
                                     Icons.notifications_outlined,
                                     color: Colors.white,
-                                    size: 26,
+                                    size: 22,
                                   ),
                                   if (_unreadNotificationCount > 0)
                                     Positioned(
@@ -421,8 +317,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ),
                                         ),
                                         constraints: const BoxConstraints(
-                                          minWidth: 20,
-                                          minHeight: 20,
+                                          minWidth: 18,
+                                          minHeight: 18,
                                         ),
                                         child: Text(
                                           _unreadNotificationCount > 99
@@ -431,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     .toString(),
                                           style: const TextStyle(
                                             color: Colors.white,
-                                            fontSize: 10,
+                                            fontSize: 9,
                                             fontWeight: FontWeight.bold,
                                           ),
                                           textAlign: TextAlign.center,
@@ -455,7 +351,152 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Helper untuk greeting berdasarkan waktu
+  Widget _buildCompactMenuSection() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 3,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Menu Utama',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryColor,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 4,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.9,
+            padding: EdgeInsets.zero,
+            children: [
+              _buildCompactMenuCard(
+                icon: Icons.book_outlined,
+                title: 'Materi',
+                color: const Color(0xFF26A69A),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MateriScreen(),
+                    ),
+                  );
+                },
+              ),
+              _buildCompactMenuCard(
+                icon: Icons.grade,
+                title: 'Nilai',
+                color: const Color(0xFFFF7043),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const NilaiScreen(),
+                    ),
+                  );
+                },
+              ),
+              _buildCompactMenuCard(
+                icon: Icons.qr_code_scanner,
+                title: 'Presensi',
+                color: const Color(0xFF42A5F5),
+                onTap: () => _navigateToTab(1),
+              ),
+              _buildCompactMenuCard(
+                icon: Icons.calendar_today,
+                title: 'Jadwal',
+                color: const Color(0xFF66BB6A),
+                onTap: () => _navigateToTab(2),
+              ),
+              _buildCompactMenuCard(
+                icon: Icons.assignment,
+                title: 'Tugas',
+                color: const Color(0xFFEF5350),
+                onTap: () => _navigateToTab(3),
+              ),
+              _buildCompactMenuCard(
+                icon: Icons.campaign,
+                title: 'Pengumuman',
+                color: const Color(0xFFFFB300),
+                onTap: _navigateToPengumuman,
+              ),
+              _buildCompactMenuCard(
+                icon: Icons.history,
+                title: 'Riwayat',
+                color: const Color(0xFF8D6E63),
+                onTap: _navigateToRiwayatAbsensi, // UBAH INI
+              ),
+              _buildCompactMenuCard(
+                icon: Icons.person,
+                title: 'Profil',
+                color: const Color(0xFFAB47BC),
+                onTap: () => _navigateToTab(5),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactMenuCard({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.3), width: 1),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 28, color: color),
+              const SizedBox(height: 6),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String _getGreeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) {
@@ -469,7 +510,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Dashboard content dengan jadwal, tugas, dan statistik
   Widget _buildDashboardContent(Map<String, dynamic> data) {
     final siswaData = data['siswa'];
     final jadwalMendatang = data['jadwalMendatang'];
@@ -481,24 +521,20 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Info Kelas dengan design lebih modern
           if (siswaData['kelas'] != null)
             _buildEnhancedKelasCard(siswaData['kelas']),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Jadwal Mendatang
           _buildSectionHeader('Jadwal Mendatang', Icons.schedule),
           const SizedBox(height: 12),
           _buildEnhancedJadwalCard(jadwalMendatang),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Tugas Mendatang
           _buildSectionHeader('Tugas Mendatang', Icons.assignment_outlined),
           const SizedBox(height: 12),
           _buildEnhancedTugasList(tugasMendatang),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Statistik Presensi
           _buildSectionHeader(
             'Statistik Presensi Bulan Ini',
             Icons.analytics_outlined,
@@ -511,31 +547,189 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Section header yang lebih menarik
+  Widget _buildPengumumanSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildSectionHeader('Pengumuman Terbaru', Icons.campaign),
+              TextButton(
+                onPressed: _navigateToPengumuman,
+                child: const Text(
+                  'Lihat Semua',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FutureBuilder<List<Pengumuman>>(
+            future: _pengumumanFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return _buildEmptyStateCard(
+                  'Gagal memuat pengumuman',
+                  Icons.error_outline,
+                );
+              }
+
+              if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                final pengumumanList = snapshot.data!.take(3).toList();
+                return Column(
+                  children: pengumumanList
+                      .map((pengumuman) => _buildPengumumanCard(pengumuman))
+                      .toList(),
+                );
+              }
+
+              return _buildEmptyStateCard(
+                'Belum ada pengumuman',
+                Icons.campaign_outlined,
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPengumumanCard(Pengumuman pengumuman) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withOpacity(0.2), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    PengumumanDetailScreen(pengumumanId: pengumuman.id),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.campaign,
+                    color: Colors.orange,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        pengumuman.judul,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        pengumuman.isi,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _formatDate(pengumuman.createdAt),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+
+    if (diff.inDays == 0) {
+      if (diff.inHours == 0) {
+        return '${diff.inMinutes} menit yang lalu';
+      }
+      return '${diff.inHours} jam yang lalu';
+    } else if (diff.inDays == 1) {
+      return 'Kemarin';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays} hari yang lalu';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: AppTheme.primaryColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
           ),
-          child: Icon(icon, color: AppTheme.primaryColor, size: 20),
+          child: Icon(icon, color: AppTheme.primaryColor, size: 16),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Text(
           title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: AppTheme.primaryColor,
+            fontSize: 16,
           ),
         ),
       ],
     );
   }
 
-  // Enhanced Card untuk info kelas
   Widget _buildEnhancedKelasCard(Map<String, dynamic> kelas) {
     return Container(
       decoration: BoxDecoration(
@@ -544,28 +738,28 @@ class _HomeScreenState extends State<HomeScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: AppTheme.primaryColor.withOpacity(0.3),
-            blurRadius: 12,
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(18),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.school, color: Colors.white, size: 32),
+              child: const Icon(Icons.school, color: Colors.white, size: 28),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -573,7 +767,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Text(
                     'Kelas Anda',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       color: Colors.white70,
                       fontWeight: FontWeight.w500,
                     ),
@@ -582,14 +776,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     kelas['nama'] ?? '-',
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
                   Text(
                     '${kelas['tingkat'] ?? ''} ${kelas['jurusan'] ?? ''}',
-                    style: const TextStyle(fontSize: 14, color: Colors.white70),
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
                   ),
                 ],
               ),
@@ -600,7 +794,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Enhanced Card untuk jadwal mendatang
   Widget _buildEnhancedJadwalCard(dynamic jadwal) {
     if (jadwal == null) {
       return _buildEmptyStateCard(
@@ -615,35 +808,35 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.green.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(
                     Icons.schedule,
                     color: Colors.green,
-                    size: 24,
+                    size: 20,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,26 +844,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         mataPelajaran['nama'] ?? '-',
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         guru['name'] ?? '-',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -679,7 +872,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Icons.calendar_today,
                     _capitalizeFirst(jadwal['hari'] ?? '-'),
                   ),
-                  Container(width: 1, height: 24, color: Colors.grey[300]),
+                  Container(width: 1, height: 20, color: Colors.grey[300]),
                   _buildInfoItem(
                     Icons.access_time,
                     '${jadwal['jamMulai']} - ${jadwal['jamSelesai']}',
@@ -693,7 +886,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Enhanced List tugas mendatang
   Widget _buildEnhancedTugasList(List<dynamic> tugasList) {
     if (tugasList.isEmpty) {
       return _buildEmptyStateCard(
@@ -710,10 +902,10 @@ class _HomeScreenState extends State<HomeScreen> {
         final isUrgent = daysLeft <= 2;
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isUrgent
                   ? Colors.red.withOpacity(0.3)
@@ -723,33 +915,33 @@ class _HomeScreenState extends State<HomeScreen> {
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.03),
-                blurRadius: 8,
+                blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
+              horizontal: 14,
+              vertical: 6,
             ),
             leading: Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: isUrgent
                     ? Colors.red.withOpacity(0.1)
                     : Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 Icons.assignment,
                 color: isUrgent ? Colors.red : Colors.orange,
-                size: 24,
+                size: 20,
               ),
             ),
             title: Text(
               tugas['judul'] ?? '-',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -757,16 +949,16 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 mataPelajaran['nama'] ?? '-',
-                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             ),
             trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: isUrgent
                     ? Colors.red.withOpacity(0.1)
                     : Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -777,14 +969,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     '$daysLeft',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                      fontSize: 16,
                       color: isUrgent ? Colors.red : Colors.orange,
                     ),
                   ),
                   Text(
                     'hari',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 9,
                       color: isUrgent ? Colors.red : Colors.orange,
                     ),
                   ),
@@ -797,22 +989,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Enhanced Statistik presensi
   Widget _buildEnhancedStatistikPresensi(Map<String, dynamic> stats) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(18),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
@@ -826,13 +1017,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Enhanced Item statistik
   Widget _buildEnhancedStatItem(String label, int value, Color color) {
     return Column(
       children: [
         Container(
-          width: 60,
-          height: 60,
+          width: 52,
+          height: 52,
           decoration: BoxDecoration(
             color: color.withOpacity(0.1),
             shape: BoxShape.circle,
@@ -841,18 +1031,18 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Text(
               value.toString(),
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           label,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 12,
             color: Colors.grey[700],
             fontWeight: FontWeight.w500,
           ),
@@ -861,17 +1051,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Info item untuk jadwal
   Widget _buildInfoItem(IconData icon, String text) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18, color: Colors.grey[600]),
+        Icon(icon, size: 16, color: Colors.grey[600]),
         const SizedBox(width: 6),
         Text(
           text,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 12,
             color: Colors.grey[700],
             fontWeight: FontWeight.w500,
           ),
@@ -880,23 +1069,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Empty state card
   Widget _buildEmptyStateCard(String message, IconData icon) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey[200]!, width: 1),
       ),
       child: Center(
         child: Column(
           children: [
-            Icon(icon, size: 48, color: Colors.grey[400]),
-            const SizedBox(height: 12),
+            Icon(icon, size: 40, color: Colors.grey[400]),
+            const SizedBox(height: 10),
             Text(
               message,
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
             ),
           ],
         ),
@@ -904,42 +1092,41 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Error card
   Widget _buildErrorCard(String error) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         children: [
-          Icon(Icons.error_outline, size: 56, color: Colors.grey[400]),
-          const SizedBox(height: 16),
+          Icon(Icons.error_outline, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 14),
           const Text(
             'Gagal memuat dashboard',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
           const SizedBox(height: 8),
           Text(
             error.replaceFirst('Exception: ', ''),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           ElevatedButton.icon(
             onPressed: _loadData,
             icon: const Icon(Icons.refresh),
             label: const Text('Coba Lagi'),
             style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             ),
           ),
         ],
@@ -947,64 +1134,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Menu card dengan gradient yang lebih modern
-  Widget _buildMenuCard({
-    required IconData icon,
-    required String title,
-    required Gradient gradient,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: gradient,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.25),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 32, color: Colors.white),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Helper untuk capitalize first letter
   String _capitalizeFirst(String text) {
     if (text.isEmpty) return text;
     return text[0].toUpperCase() + text.substring(1);

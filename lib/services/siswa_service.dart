@@ -11,6 +11,8 @@ import '../models/tugas.dart';
 import '../models/nilai.dart';
 import '../models/notifikasi.dart';
 import '../models/histori_aktivitas.dart';
+import "../models/pengumuman.dart";
+import '../models/absensi.dart';
 
 class SiswaService {
   final ApiService _apiService = ApiService();
@@ -71,6 +73,20 @@ class SiswaService {
     }
   }
 
+  Future<void> registerDeviceToken(String deviceToken) async {
+    try {
+      // Menggunakan metode .post dari ApiService Anda
+      await _apiService.post('auth/register-device', {
+        'deviceToken': deviceToken,
+      });
+      print('✅ Device token berhasil didaftarkan ke backend.');
+    } catch (e) {
+      // Melempar kembali error agar bisa ditangkap di tempat pemanggilan jika perlu
+      print('❌ Gagal mendaftarkan device token ke backend: $e');
+      throw Exception('Gagal mendaftarkan perangkat.');
+    }
+  }
+
   /// Mengambil satu jadwal terdekat yang akan datang.
   ///
   /// **Endpoint**: `GET /siswa/jadwal/mendatang`
@@ -90,6 +106,38 @@ class SiswaService {
       return null;
     } catch (e) {
       throw Exception('Gagal memuat jadwal mendatang: $e');
+    }
+  }
+
+  /// Mengambil detail notifikasi berdasarkan ID
+  ///
+  /// **Endpoint**: `GET /siswa/notifikasi/:id`
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "notifikasi": {
+  ///     "_id": "string",
+  ///     "tipe": "string",
+  ///     "judul": "string",
+  ///     "pesan": "string",
+  ///     "resourceId": "string | null",
+  ///     "isRead": boolean,
+  ///     "createdAt": "ISO_Date_String",
+  ///     "updatedAt": "ISO_Date_String"
+  ///   },
+  ///   "detailResource": {
+  ///     "type": "tugas" | "nilai" | "pengumuman" | "jadwal",
+  ///     "data": { ... }
+  ///   } | null
+  /// }
+  /// ```
+  Future<Map<String, dynamic>> getDetailNotifikasi(String notifikasiId) async {
+    try {
+      final response = await _apiService.get('siswa/notifikasi/$notifikasiId');
+      return response;
+    } catch (e) {
+      throw Exception('Gagal memuat detail notifikasi: $e');
     }
   }
 
@@ -315,6 +363,31 @@ class SiswaService {
       return response['message'];
     } catch (e) {
       throw Exception('Gagal menandai notifikasi: $e');
+    }
+  }
+
+  /// Mengambil daftar semua pengumuman yang relevan untuk siswa.
+  ///
+  /// **Endpoint**: `GET /pengumuman`
+  Future<List<Pengumuman>> getPengumuman() async {
+    try {
+      final response = await _apiService.get('pengumuman');
+      final List<dynamic> data = response;
+      return data.map((json) => Pengumuman.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Gagal memuat pengumuman: $e');
+    }
+  }
+
+  /// Mengambil detail satu pengumuman berdasarkan ID.
+  ///
+  /// **Endpoint**: `GET /pengumuman/:id`
+  Future<Pengumuman> getPengumumanById(String id) async {
+    try {
+      final response = await _apiService.get('pengumuman/$id');
+      return Pengumuman.fromJson(response);
+    } catch (e) {
+      throw Exception('Gagal memuat detail pengumuman: $e');
     }
   }
 
@@ -706,6 +779,119 @@ class SiswaService {
         rethrow;
       }
       throw Exception('Gagal mengumpulkan tugas: $e');
+    }
+  }
+  // ==================== PRESENSI METHODS ====================
+
+  /// Mengambil riwayat presensi siswa dengan pagination
+  ///
+  /// **Endpoint**: `GET /siswa/presensi?page=<num>&limit=<num>`
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "docs": [ { ... } ], // List Objek Absensi
+  ///   "totalDocs": int,
+  ///   "limit": int,
+  ///   "totalPages": int,
+  ///   "page": int,
+  ///   "hasNextPage": boolean,
+  ///   "hasPrevPage": boolean
+  /// }
+  /// ```
+  Future<Map<String, dynamic>> getRiwayatPresensi({
+    int page = 1,
+    int limit = 15,
+  }) async {
+    try {
+      final response = await _apiService.get(
+        'siswa/presensi?page=$page&limit=$limit',
+      );
+
+      return {
+        'docs': (response['docs'] as List<dynamic>)
+            .map((json) => Absensi.fromJson(json))
+            .toList(),
+        'totalDocs': response['totalDocs'],
+        'limit': response['limit'],
+        'totalPages': response['totalPages'],
+        'page': response['page'],
+        'hasNextPage': response['hasNextPage'] ?? false,
+        'hasPrevPage': response['hasPrevPage'] ?? false,
+      };
+    } catch (e) {
+      throw Exception('Gagal memuat riwayat presensi: $e');
+    }
+  }
+
+  /// Mengambil statistik presensi siswa
+  ///
+  /// **Endpoint**: `GET /siswa/presensi/statistik?tahunAjaran=<string>&semester=<string>`
+  ///
+  /// **Success Response (200)**:
+  /// ```json
+  /// {
+  ///   "hadir": int,
+  ///   "izin": int,
+  ///   "sakit": int,
+  ///   "alpa": int,
+  ///   "total": int,
+  ///   "persentaseHadir": double,
+  ///   "perBulan": [ ... ]
+  /// }
+  /// ```
+  Future<Map<String, dynamic>> getStatistikPresensi({
+    String? tahunAjaran,
+    String? semester,
+  }) async {
+    try {
+      String endpoint = 'siswa/presensi/statistik';
+      List<String> params = [];
+
+      if (tahunAjaran != null && tahunAjaran.isNotEmpty) {
+        params.add('tahunAjaran=$tahunAjaran');
+      }
+      if (semester != null && semester.isNotEmpty) {
+        params.add('semester=$semester');
+      }
+
+      if (params.isNotEmpty) {
+        endpoint += '?${params.join('&')}';
+      }
+
+      final response = await _apiService.get(endpoint);
+      return response;
+    } catch (e) {
+      throw Exception('Gagal memuat statistik presensi: $e');
+    }
+  }
+
+  /// Mengambil presensi hari ini saja
+  ///
+  /// **Endpoint**: `GET /siswa/presensi/hari-ini`
+  ///
+  /// **Success Response (200)**: `List<Absensi>`
+  Future<List<Absensi>> getPresensiHariIni() async {
+    try {
+      final response = await _apiService.get('siswa/presensi/hari-ini');
+      final List<dynamic> data = response;
+      return data.map((json) => Absensi.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Gagal memuat presensi hari ini: $e');
+    }
+  }
+
+  /// Mengambil detail presensi berdasarkan ID
+  ///
+  /// **Endpoint**: `GET /siswa/presensi/:id`
+  ///
+  /// **Success Response (200)**: Objek Absensi lengkap
+  Future<Absensi> getDetailPresensi(String presensiId) async {
+    try {
+      final response = await _apiService.get('siswa/presensi/$presensiId');
+      return Absensi.fromJson(response);
+    } catch (e) {
+      throw Exception('Gagal memuat detail presensi: $e');
     }
   }
 }

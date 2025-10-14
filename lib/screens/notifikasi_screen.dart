@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../services/siswa_service.dart';
 import '../models/notifikasi.dart';
 import '../utils/app_theme.dart';
+import 'notifikasi_detail_screen.dart';
 
 class NotifikasiScreen extends StatefulWidget {
   const NotifikasiScreen({super.key});
@@ -288,7 +289,14 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
           if (!notifikasi.isRead) {
             _markAsRead(notifikasi.id);
           }
-          // TODO: Navigasi ke halaman terkait berdasarkan resourceId
+          // Navigasi ke halaman detail notifikasi
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  NotifikasiDetailScreen(notifikasiId: notifikasi.id),
+            ),
+          );
         },
         borderRadius: BorderRadius.circular(16),
         child: Container(
@@ -375,6 +383,12 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
                               fontSize: 12,
                               color: Colors.grey[500],
                             ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            size: 14,
+                            color: Colors.grey[400],
                           ),
                         ],
                       ),

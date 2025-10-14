@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
 import '../services/absensi_service.dart';
 import '../models/absensi.dart';
 import '../utils/app_theme.dart';
@@ -56,8 +57,15 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
           _locationWarning = true;
           _locationError = result.errorMessage;
         }
+
+        // Debug info
+        print('📍 LOKASI TERDETEKSI:');
+        print('   Latitude: ${_currentPosition!.latitude}');
+        print('   Longitude: ${_currentPosition!.longitude}');
+        print('   Akurasi: ${_currentPosition!.accuracy}m');
       } else {
         _locationError = result.errorMessage;
+        print('❌ LOKASI GAGAL: ${result.errorMessage}');
       }
     });
   }
@@ -68,6 +76,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     setState(() => _isLoadingHistory = true);
 
     try {
+      // PERBAIKAN: Gunakan endpoint yang benar untuk siswa
       final response = await _absensiService.getRiwayatPresensi(
         page: 1,
         limit: 50,
@@ -82,8 +91,11 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
         _todayAbsensi = todayList;
         _isLoadingHistory = false;
       });
+
+      print('✅ Riwayat hari ini berhasil dimuat: ${todayList.length} record');
     } catch (e) {
       setState(() => _isLoadingHistory = false);
+      print('❌ Gagal memuat riwayat: $e');
       if (mounted) {
         _showErrorSnackbar('Gagal memuat riwayat: ${e.toString()}');
       }
@@ -93,6 +105,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
   // ==================== QR SCANNER ====================
 
   Future<void> _openQRScanner() async {
+    // VALIDASI 1: Cek apakah lokasi tersedia
     if (_currentPosition == null) {
       if (_locationError != null && _locationError!.contains('permanen')) {
         _showPermissionDialog();
@@ -105,18 +118,27 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
       return;
     }
 
+    // VALIDASI 2: Cek akurasi GPS
     if (!_currentPosition!.isAccuracyGood && !_locationWarning) {
       final proceed = await _showAccuracyWarningDialog();
       if (!proceed) return;
     }
 
+    // INFO: Tampilkan lokasi yang akan digunakan
+    print('🎯 MEMULAI SCAN QR dengan lokasi:');
+    print('   Lat: ${_currentPosition!.latitude}');
+    print('   Long: ${_currentPosition!.longitude}');
+    print('   Akurasi: ${_currentPosition!.accuracy}m');
+
+    // Buka QR Scanner
     final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (context) => const QRScannerScreen()),
     );
 
     if (result != null && result.isNotEmpty) {
-      await _processCheckIn(result);
+      print('📱 QR Code berhasil discan: $result');
+      await _processQRCode(result);
     }
   }
 
@@ -250,11 +272,33 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
               },
             ),
             const SizedBox(height: 12),
-            Text(
-              'Pastikan kode yang Anda masukkan sesuai dengan yang ditampilkan guru.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue.shade700,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Metode ini TIDAK memerlukan lokasi GPS',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -280,6 +324,38 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     );
   }
 
+  // ==================== PROCESS QR CODE ====================
+
+  Future<void> _processQRCode(String qrCodeData) async {
+    // VALIDASI: Pastikan lokasi masih tersedia
+    if (_currentPosition == null) {
+      _showErrorSnackbar('Lokasi tidak tersedia');
+      return;
+    }
+
+    String kodeSesi;
+
+    try {
+      // PARSING: Coba parse sebagai JSON (format dari backend)
+      final jsonData = jsonDecode(qrCodeData);
+      kodeSesi = jsonData['KODE_SESI'] ?? qrCodeData;
+
+      print('📦 DATA QR CODE (JSON):');
+      print('   KODE_SESI: $kodeSesi');
+      print('   MATA_PELAJARAN: ${jsonData['MATA_PELAJARAN']}');
+      print('   KELAS: ${jsonData['KELAS']}');
+      print('   TANGGAL: ${jsonData['TANGGAL']}');
+      print('   EXPIRED: ${jsonData['EXPIRED']}');
+    } catch (e) {
+      // Jika bukan JSON, anggap sebagai kode sesi langsung
+      kodeSesi = qrCodeData;
+      print('📝 DATA QR CODE (Plain Text): $kodeSesi');
+    }
+
+    // PROSES: Kirim check-in
+    await _processCheckIn(kodeSesi);
+  }
+
   // ==================== CHECK-IN PROCESS ====================
 
   Future<void> _processCheckIn(String kodeSesi) async {
@@ -287,6 +363,102 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
       _showErrorSnackbar('Lokasi tidak tersedia');
       return;
     }
+
+    // INFO: Data yang akan dikirim ke backend
+    print('🚀 MEMULAI CHECK-IN:');
+    print('   Kode Sesi: $kodeSesi');
+    print('   Latitude: ${_currentPosition!.latitude}');
+    print('   Longitude: ${_currentPosition!.longitude}');
+    print('   Akurasi: ${_currentPosition!.accuracy}m');
+    print('───────────────────────────────────────');
+    print('📡 REQUEST BODY:');
+    print('   {');
+    print('     "kodeSesi": "$kodeSesi",');
+    print('     "latitude": ${_currentPosition!.latitude},');
+    print('     "longitude": ${_currentPosition!.longitude}');
+    print('   }');
+    print('───────────────────────────────────────');
+
+    // Tampilkan loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 40),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppTheme.primaryColor),
+              const SizedBox(height: 16),
+              const Text(
+                'Memproses presensi...',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}\n'
+                'Long: ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      // KIRIM: Request check-in ke backend
+      final message = await _absensiService.checkIn(
+        kodeSesi,
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      );
+
+      print('✅ CHECK-IN BERHASIL: $message');
+
+      if (mounted) Navigator.pop(context); // Tutup loading
+
+      if (mounted) {
+        _showSuccessDialog(message);
+        await _loadTodayHistory(); // Refresh history
+      }
+    } on AbsensiException catch (e) {
+      print('❌ CHECK-IN GAGAL: ${e.message}');
+      print('   Status Code: ${e.statusCode}');
+
+      if (mounted) Navigator.pop(context); // Tutup loading
+
+      if (mounted) {
+        if (e.isValidationError || e.isForbiddenError) {
+          _showErrorDialog('Presensi Gagal', e.message);
+        } else if (e.isNetworkError) {
+          _showErrorDialog('Koneksi Bermasalah', e.message);
+        } else {
+          _showErrorSnackbar(e.message);
+        }
+      }
+    } catch (e) {
+      print('❌ CHECK-IN ERROR: $e');
+
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        _showErrorSnackbar('Terjadi kesalahan: ${e.toString()}');
+      }
+    }
+  }
+
+  Future<void> _processCheckInWithCode(String kodeAbsen) async {
+    print('🔑 MEMULAI CHECK-IN DENGAN KODE MANUAL:');
+    print('   Kode: $kodeAbsen');
+    print('   Catatan: Tidak memerlukan lokasi GPS');
+    print('───────────────────────────────────────');
 
     showDialog(
       context: context,
@@ -308,65 +480,10 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                 'Memproses presensi...',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    try {
-      final message = await _absensiService.checkIn(
-        kodeSesi,
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-      );
-
-      if (mounted) Navigator.pop(context);
-
-      if (mounted) {
-        _showSuccessDialog(message);
-        await _loadTodayHistory();
-      }
-    } on AbsensiException catch (e) {
-      if (mounted) Navigator.pop(context);
-
-      if (mounted) {
-        if (e.isValidationError || e.isForbiddenError) {
-          _showErrorDialog('Presensi Gagal', e.message);
-        } else if (e.isNetworkError) {
-          _showErrorDialog('Koneksi Bermasalah', e.message);
-        } else {
-          _showErrorSnackbar(e.message);
-        }
-      }
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      if (mounted) {
-        _showErrorSnackbar('Terjadi kesalahan: ${e.toString()}');
-      }
-    }
-  }
-
-  Future<void> _processCheckInWithCode(String kodeAbsen) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 40),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: AppTheme.primaryColor),
-              const SizedBox(height: 16),
-              const Text(
-                'Memproses presensi...',
-                style: TextStyle(fontWeight: FontWeight.w600),
+              const SizedBox(height: 8),
+              Text(
+                'Kode: $kodeAbsen',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -377,6 +494,8 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     try {
       final message = await _absensiService.checkInWithCode(kodeAbsen);
 
+      print('✅ CHECK-IN DENGAN KODE BERHASIL: $message');
+
       if (mounted) Navigator.pop(context);
 
       if (mounted) {
@@ -384,6 +503,8 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
         await _loadTodayHistory();
       }
     } on AbsensiException catch (e) {
+      print('❌ CHECK-IN DENGAN KODE GAGAL: ${e.message}');
+
       if (mounted) Navigator.pop(context);
 
       if (mounted) {
@@ -396,6 +517,8 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
         }
       }
     } catch (e) {
+      print('❌ CHECK-IN DENGAN KODE ERROR: $e');
+
       if (mounted) Navigator.pop(context);
       if (mounted) {
         _showErrorSnackbar('Terjadi kesalahan: ${e.toString()}');
@@ -428,7 +551,33 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
             const Expanded(child: Text('Berhasil!')),
           ],
         ),
-        content: Text(message),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            if (_currentPosition != null) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'Detail Lokasi:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}\n'
+                'Long: ${_currentPosition!.longitude.toStringAsFixed(6)}\n'
+                'Akurasi: ${_currentPosition!.accuracy.toStringAsFixed(1)}m',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
+            ],
+          ],
+        ),
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
@@ -592,7 +741,9 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
         icon: isGood ? Icons.location_on : Icons.location_searching,
         title: 'Lokasi Terdeteksi',
         subtitle:
-            'Akurasi: ${_currentPosition!.accuracy.toStringAsFixed(1)}m ($accuracyStatus)',
+            'Akurasi: ${_currentPosition!.accuracy.toStringAsFixed(1)}m ($accuracyStatus)\n'
+            'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}, '
+            'Long: ${_currentPosition!.longitude.toStringAsFixed(6)}',
         color: isGood ? AppTheme.successColor : AppTheme.accentColor,
         trailing: IconButton(
           icon: const Icon(Icons.refresh),
@@ -667,7 +818,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
         _buildCheckinButton(
           icon: Icons.qr_code_scanner,
           title: 'Scan QR Code',
-          subtitle: 'Scan kode QR dari guru',
+          subtitle: 'Scan kode QR dari guru (butuh GPS)',
           onPressed: _openQRScanner,
           color: AppTheme.primaryColor,
           enabled: _currentPosition != null && _locationError == null,
@@ -676,7 +827,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
         _buildCheckinButton(
           icon: Icons.vpn_key,
           title: 'Input Kode Manual',
-          subtitle: 'Masukkan kode absensi manual',
+          subtitle: 'Masukkan kode absensi (tanpa GPS)',
           onPressed: _openManualCodeInput,
           color: AppTheme.accentColor,
           enabled: true,
@@ -894,6 +1045,37 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                         ),
                       ),
                     ],
+                    if (absensi.lokasiSiswa != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              size: 10,
+                              color: Colors.green[700],
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              'GPS',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -1076,6 +1258,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       final code = barcodes.first.rawValue;
       if (code != null && code.isNotEmpty) {
         setState(() => _hasScanned = true);
+        print('🎯 QR Code Terdeteksi: $code');
         Navigator.pop(context, code);
       }
     }

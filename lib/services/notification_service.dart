@@ -1,47 +1,139 @@
 // lib/services/notification_service.dart
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:absensi_mobile/services/siswa_service.dart';
 
 class NotificationService {
-  // Ganti dengan App ID OneSignal Anda
   static const String _oneSignalAppId = "7bd26472-b53d-488f-9ca0-a0157a27663c";
+  static bool _isInitialized = false;
 
-  // Inisialisasi OneSignal
   static Future<void> initOneSignal() async {
-    // Menghapus log yang berlebihan
-    OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+    if (_isInitialized) {
+      print('⚠️ OneSignal sudah diinisialisasi sebelumnya');
+      return;
+    }
 
-    // Inisialisasi OneSignal dengan App ID Anda
-    OneSignal.initialize(_oneSignalAppId);
+    try {
+      print('🔔 Memulai inisialisasi OneSignal...');
 
-    // Meminta izin notifikasi dari pengguna (penting untuk iOS)
-    OneSignal.Notifications.requestPermission(true);
+      // Set log level untuk debugging
+      OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
 
-    // Menangani saat notifikasi dibuka
-    OneSignal.Notifications.addClickListener((event) {
-      print('NOTIFICATION CLICKED: ${event.notification.jsonRepresentation()}');
-      // Di sini Anda bisa menambahkan logika navigasi berdasarkan
-      // data tambahan (additionalData) dari notifikasi.
-      // Contoh: jika notifikasi tentang tugas baru, buka halaman tugas.
-      final resourceId = event.notification.additionalData?['resourceId'];
-      if (resourceId != null) {
-        print('Navigasi ke resource dengan ID: $resourceId');
-        // Navigator.push(context, MaterialPageRoute(builder: (context) => DetailTugasScreen(id: resourceId)));
-      }
-    });
+      // Initialize OneSignal
+      OneSignal.initialize(_oneSignalAppId);
 
-    // Menangani saat notifikasi diterima saat aplikasi terbuka
-    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-      print(
-        'NOTIFICATION RECEIVED IN FOREGROUND: ${event.notification.jsonRepresentation()}',
+      // Request permission
+      final permissionGranted = await OneSignal.Notifications.requestPermission(
+        true,
       );
-      // Mencegah notifikasi ditampilkan (jika perlu)
-      event.preventDefault();
+      print(
+        '📱 Izin notifikasi: ${permissionGranted ? "Diberikan" : "Ditolak"}',
+      );
 
-      // Anda bisa menampilkan dialog atau snackbar kustom di sini
-      // sebagai ganti notifikasi sistem.
+      // Get current subscription state
+      final subscriptionState = OneSignal.User.pushSubscription.optedIn;
+      print(
+        '📡 Status subscription: ${subscriptionState == true ? "Subscribed" : "Not subscribed"}',
+      );
 
-      // Untuk tetap menampilkan notifikasi, panggil display()
-      event.notification.display();
-    });
+      // Listener untuk perubahan subscription state
+      OneSignal.User.pushSubscription.addObserver((state) async {
+        final String? playerId = state.current.id;
+        final bool isSubscribed = state.current.optedIn;
+
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        print('🔔 PUSH SUBSCRIPTION STATE CHANGED');
+        print('Player ID: ${playerId ?? "null"}');
+        print('Is Subscribed: $isSubscribed');
+        print('Token: ${state.current.token ?? "null"}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        if (playerId != null && playerId.isNotEmpty && isSubscribed) {
+          try {
+            print('📤 Mengirim Player ID ke backend...');
+            await SiswaService().registerDeviceToken(playerId);
+            print('✅ Player ID berhasil didaftarkan ke backend');
+          } catch (e) {
+            print('❌ Gagal mendaftarkan Player ID ke backend: $e');
+          }
+        } else {
+          print('⚠️ Player ID tidak valid atau user belum subscribe');
+        }
+      });
+
+      // Listener untuk notifikasi yang diklik
+      OneSignal.Notifications.addClickListener((event) {
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        print('👆 NOTIFICATION CLICKED');
+        print('Notification ID: ${event.notification.notificationId}');
+        print('Title: ${event.notification.title}');
+        print('Body: ${event.notification.body}');
+        print('Additional Data: ${event.notification.additionalData}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        final resourceId = event.notification.additionalData?['resourceId'];
+        final type = event.notification.additionalData?['type'];
+
+        if (resourceId != null) {
+          print('🎯 Navigasi ke resource: $type - $resourceId');
+          // TODO: Implementasi navigasi berdasarkan type
+        }
+      });
+
+      // Listener untuk notifikasi yang diterima saat app di foreground
+      OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        print('📬 NOTIFICATION RECEIVED (FOREGROUND)');
+        print('Notification ID: ${event.notification.notificationId}');
+        print('Title: ${event.notification.title}');
+        print('Body: ${event.notification.body}');
+        print('Additional Data: ${event.notification.additionalData}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        // Tampilkan notifikasi
+        event.notification.display();
+      });
+
+      // Listener untuk permission changes
+      OneSignal.Notifications.addPermissionObserver((granted) {
+        print('🔔 Permission changed: ${granted ? "Granted" : "Denied"}');
+      });
+
+      _isInitialized = true;
+      print('✅ OneSignal berhasil diinisialisasi');
+
+      // Log current player ID
+      final currentPlayerId = OneSignal.User.pushSubscription.id;
+      print('📱 Current Player ID: ${currentPlayerId ?? "Belum tersedia"}');
+    } catch (e) {
+      print('❌ Error inisialisasi OneSignal: $e');
+      rethrow;
+    }
+  }
+
+  /// Force sync dengan OneSignal server
+  static Future<void> syncDevice() async {
+    try {
+      print('🔄 Melakukan sync dengan OneSignal...');
+      final playerId = OneSignal.User.pushSubscription.id;
+
+      if (playerId != null && playerId.isNotEmpty) {
+        await SiswaService().registerDeviceToken(playerId);
+        print('✅ Sync berhasil');
+      } else {
+        print('⚠️ Player ID belum tersedia untuk sync');
+      }
+    } catch (e) {
+      print('❌ Error sync device: $e');
+    }
+  }
+
+  /// Get current player ID
+  static String? getCurrentPlayerId() {
+    return OneSignal.User.pushSubscription.id;
+  }
+
+  /// Check if notifications are enabled
+  static bool isNotificationEnabled() {
+    return OneSignal.User.pushSubscription.optedIn ?? false;
   }
 }

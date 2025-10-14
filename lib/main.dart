@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'screens/splash_screen.dart'; // TAMBAHAN: Import splash screen
 import 'screens/login_screen.dart';
 import 'screens/main_navigation.dart';
 import 'services/notification_service.dart';
@@ -17,18 +18,28 @@ void main() async {
   Intl.defaultLocale = 'id';
 
   // Inisialisasi OneSignal
+  print('🚀 Memulai inisialisasi OneSignal...');
   await NotificationService.initOneSignal();
+
+  // Tunggu sebentar untuk memastikan OneSignal ready
+  await Future.delayed(const Duration(seconds: 2));
 
   // Cek status login
   final prefs = await SharedPreferences.getInstance();
   final isLoggedIn = prefs.getString('token') != null;
 
-  runApp(MyApp(isLoggedIn: isLoggedIn));
+  // Jika sudah login, coba sync device
+  if (isLoggedIn) {
+    print('👤 User sudah login, melakukan sync device...');
+    await NotificationService.syncDevice();
+  }
+
+  // PERUBAHAN: Tidak lagi pass isLoggedIn ke MyApp
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final bool isLoggedIn;
-  const MyApp({super.key, required this.isLoggedIn});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -53,8 +64,10 @@ class MyApp extends StatelessWidget {
       // Default locale
       locale: const Locale('id'),
 
+      // PERUBAHAN: Home sekarang langsung ke SplashScreen
+      home: const SplashScreen(),
+
       // Routes
-      home: isLoggedIn ? const MainNavigation() : const LoginScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/main': (context) => const MainNavigation(),

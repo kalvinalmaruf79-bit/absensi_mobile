@@ -3,6 +3,7 @@ import '../utils/app_theme.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
 import 'ganti_password_screen.dart';
+import 'riwayat_absensi_screen.dart';
 import 'login_screen.dart';
 
 /// Screen Profil - Menampilkan informasi profil pengguna dari backend
@@ -192,12 +193,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
                       subtitle: 'Ubah password akun Anda',
                       onTap: () => _navigateToChangePassword(),
                     ),
-                    _MenuItem(
-                      icon: Icons.notifications,
-                      title: 'Notifikasi',
-                      subtitle: 'Pengaturan notifikasi aplikasi',
-                      onTap: () => _showComingSoonDialog('Notifikasi'),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -208,16 +203,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     title: 'Akademik',
                     items: [
                       _MenuItem(
-                        icon: Icons.school,
-                        title: 'Rapor',
-                        subtitle: 'Lihat nilai dan rapor',
-                        onTap: () => _showComingSoonDialog('Rapor'),
-                      ),
-                      _MenuItem(
-                        icon: Icons.history,
+                        icon: Icons.event_available,
                         title: 'Riwayat Absensi',
-                        subtitle: 'Lihat riwayat kehadiran',
-                        onTap: () => _showComingSoonDialog('Riwayat Absensi'),
+                        subtitle: 'Lihat riwayat kehadiran lengkap',
+                        onTap: () => _navigateToRiwayatAbsensi(),
                       ),
                     ],
                   ),
@@ -411,7 +400,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Widget _buildLogoutButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 50,
+      height: 60,
       child: ElevatedButton.icon(
         onPressed: () => _showLogoutDialog(context),
         icon: const Icon(Icons.logout),
@@ -435,23 +424,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
   }
 
-  void _showComingSoonDialog(String feature) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Segera Hadir',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: Text('Fitur $feature akan segera tersedia.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+  void _navigateToRiwayatAbsensi() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const RiwayatAbsensiScreen()),
     );
   }
 
