@@ -48,6 +48,8 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
 
     final result = await LocationHelper.checkAndGetLocation();
 
+    if (!mounted) return;
+
     setState(() {
       _isCheckingLocation = false;
 
@@ -58,7 +60,6 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
           _locationError = result.errorMessage;
         }
 
-        // Debug info
         print('📍 LOKASI TERDETEKSI:');
         print('   Latitude: ${_currentPosition!.latitude}');
         print('   Longitude: ${_currentPosition!.longitude}');
@@ -76,7 +77,6 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     setState(() => _isLoadingHistory = true);
 
     try {
-      // PERBAIKAN: Gunakan endpoint yang benar untuk siswa
       final response = await _absensiService.getRiwayatPresensi(
         page: 1,
         limit: 50,
@@ -87,6 +87,8 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
           .where((abs) => abs.tanggal == today)
           .toList();
 
+      if (!mounted) return;
+
       setState(() {
         _todayAbsensi = todayList;
         _isLoadingHistory = false;
@@ -94,18 +96,17 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
 
       print('✅ Riwayat hari ini berhasil dimuat: ${todayList.length} record');
     } catch (e) {
+      if (!mounted) return;
+
       setState(() => _isLoadingHistory = false);
       print('❌ Gagal memuat riwayat: $e');
-      if (mounted) {
-        _showErrorSnackbar('Gagal memuat riwayat: ${e.toString()}');
-      }
+      _showErrorSnackbar('Gagal memuat riwayat: ${e.toString()}');
     }
   }
 
   // ==================== QR SCANNER ====================
 
   Future<void> _openQRScanner() async {
-    // VALIDASI 1: Cek apakah lokasi tersedia
     if (_currentPosition == null) {
       if (_locationError != null && _locationError!.contains('permanen')) {
         _showPermissionDialog();
@@ -118,23 +119,24 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
       return;
     }
 
-    // VALIDASI 2: Cek akurasi GPS
     if (!_currentPosition!.isAccuracyGood && !_locationWarning) {
       final proceed = await _showAccuracyWarningDialog();
       if (!proceed) return;
     }
 
-    // INFO: Tampilkan lokasi yang akan digunakan
     print('🎯 MEMULAI SCAN QR dengan lokasi:');
     print('   Lat: ${_currentPosition!.latitude}');
     print('   Long: ${_currentPosition!.longitude}');
     print('   Akurasi: ${_currentPosition!.accuracy}m');
 
-    // Buka QR Scanner
+    if (!mounted) return;
+
     final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (context) => const QRScannerScreen()),
     );
+
+    if (!mounted) return;
 
     if (result != null && result.isNotEmpty) {
       print('📱 QR Code berhasil discan: $result');
@@ -214,120 +216,143 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
   // ==================== MANUAL CODE INPUT ====================
 
   Future<void> _openManualCodeInput() async {
-    final TextEditingController codeController = TextEditingController();
+    String? inputCode;
 
-    return showDialog(
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppTheme.accentColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        final TextEditingController controller = TextEditingController();
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.password, color: AppTheme.accentColor),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(child: Text('Input Kode Absensi')),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Masukkan kode absensi yang diberikan oleh guru:',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: codeController,
-              textCapitalization: TextCapitalization.characters,
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                hintText: 'Contoh: ABC123',
-                prefixIcon: const Icon(Icons.vpn_key),
-                filled: true,
-                fillColor: AppTheme.primaryColor.withValues(alpha: 0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: AppTheme.primaryColor,
-                    width: 2,
-                  ),
-                ),
-              ),
-              onSubmitted: (value) {
-                if (value.isNotEmpty) {
-                  Navigator.pop(context);
-                  _processCheckInWithCode(value);
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Row(
+              title: Row(
                 children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: Colors.blue.shade700,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Metode ini TIDAK memerlukan lokasi GPS',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue.shade700,
-                        fontWeight: FontWeight.w500,
-                      ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.password,
+                      color: AppTheme.accentColor,
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Input Kode Absensi')),
                 ],
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              codeController.dispose();
-              Navigator.pop(context);
-            },
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (codeController.text.isNotEmpty) {
-                Navigator.pop(context);
-                _processCheckInWithCode(codeController.text);
-              }
-            },
-            child: const Text('Kirim'),
-          ),
-        ],
-      ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Masukkan kode absensi yang diberikan oleh guru:',
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: controller,
+                      textCapitalization: TextCapitalization.characters,
+                      textInputAction: TextInputAction.done,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Contoh: ABC123',
+                        prefixIcon: const Icon(Icons.vpn_key),
+                        filled: true,
+                        fillColor: AppTheme.primaryColor.withValues(
+                          alpha: 0.05,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppTheme.primaryColor,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      onSubmitted: (value) {
+                        if (value.trim().isNotEmpty) {
+                          inputCode = value.trim();
+                          Navigator.of(dialogContext).pop(true);
+                        }
+                      },
+                      onChanged: (value) {
+                        inputCode = value.trim();
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.blue.shade700,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Metode ini TIDAK memerlukan lokasi GPS',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(false);
+                  },
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if ((inputCode?.isNotEmpty ?? false)) {
+                      Navigator.of(dialogContext).pop(true);
+                    }
+                  },
+                  child: const Text('Kirim'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
+
+    // Proses setelah dialog tertutup
+    if (confirmed == true && inputCode != null && inputCode!.isNotEmpty) {
+      await _processCheckInWithCode(inputCode!);
+    }
   }
 
   // ==================== PROCESS QR CODE ====================
 
   Future<void> _processQRCode(String qrCodeData) async {
-    // VALIDASI: Pastikan lokasi masih tersedia
     if (_currentPosition == null) {
       _showErrorSnackbar('Lokasi tidak tersedia');
       return;
@@ -336,7 +361,6 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     String kodeSesi;
 
     try {
-      // PARSING: Coba parse sebagai JSON (format dari backend)
       final jsonData = jsonDecode(qrCodeData);
       kodeSesi = jsonData['KODE_SESI'] ?? qrCodeData;
 
@@ -347,12 +371,10 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
       print('   TANGGAL: ${jsonData['TANGGAL']}');
       print('   EXPIRED: ${jsonData['EXPIRED']}');
     } catch (e) {
-      // Jika bukan JSON, anggap sebagai kode sesi langsung
       kodeSesi = qrCodeData;
       print('📝 DATA QR CODE (Plain Text): $kodeSesi');
     }
 
-    // PROSES: Kirim check-in
     await _processCheckIn(kodeSesi);
   }
 
@@ -364,57 +386,51 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
       return;
     }
 
-    // INFO: Data yang akan dikirim ke backend
     print('🚀 MEMULAI CHECK-IN:');
     print('   Kode Sesi: $kodeSesi');
     print('   Latitude: ${_currentPosition!.latitude}');
     print('   Longitude: ${_currentPosition!.longitude}');
     print('   Akurasi: ${_currentPosition!.accuracy}m');
-    print('───────────────────────────────────────');
-    print('📡 REQUEST BODY:');
-    print('   {');
-    print('     "kodeSesi": "$kodeSesi",');
-    print('     "latitude": ${_currentPosition!.latitude},');
-    print('     "longitude": ${_currentPosition!.longitude}');
-    print('   }');
-    print('───────────────────────────────────────');
 
-    // Tampilkan loading dialog
+    if (!mounted) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 40),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: AppTheme.primaryColor),
-              const SizedBox(height: 16),
-              const Text(
-                'Memproses presensi...',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}\n'
-                'Long: ${_currentPosition!.longitude.toStringAsFixed(6)}',
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                textAlign: TextAlign.center,
-              ),
-            ],
+      builder: (context) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: AppTheme.primaryColor),
+                const SizedBox(height: 16),
+                const Text(
+                  'Memproses presensi...',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}\n'
+                  'Long: ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
 
     try {
-      // KIRIM: Request check-in ke backend
       final message = await _absensiService.checkIn(
         kodeSesi,
         _currentPosition!.latitude,
@@ -423,17 +439,16 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
 
       print('✅ CHECK-IN BERHASIL: $message');
 
-      if (mounted) Navigator.pop(context); // Tutup loading
+      if (mounted) Navigator.pop(context);
 
       if (mounted) {
         _showSuccessDialog(message);
-        await _loadTodayHistory(); // Refresh history
+        await _loadTodayHistory();
       }
     } on AbsensiException catch (e) {
       print('❌ CHECK-IN GAGAL: ${e.message}');
-      print('   Status Code: ${e.statusCode}');
 
-      if (mounted) Navigator.pop(context); // Tutup loading
+      if (mounted) Navigator.pop(context);
 
       if (mounted) {
         if (e.isValidationError || e.isForbiddenError) {
@@ -457,35 +472,38 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
   Future<void> _processCheckInWithCode(String kodeAbsen) async {
     print('🔑 MEMULAI CHECK-IN DENGAN KODE MANUAL:');
     print('   Kode: $kodeAbsen');
-    print('   Catatan: Tidak memerlukan lokasi GPS');
-    print('───────────────────────────────────────');
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 40),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: AppTheme.primaryColor),
-              const SizedBox(height: 16),
-              const Text(
-                'Memproses presensi...',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Kode: $kodeAbsen',
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-              ),
-            ],
+      builder: (context) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: AppTheme.primaryColor),
+                const SizedBox(height: 16),
+                const Text(
+                  'Memproses presensi...',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Kode: $kodeAbsen',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -623,6 +641,8 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
   }
 
   void _showErrorSnackbar(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -1290,10 +1310,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       ),
       body: Stack(
         children: [
-          // Camera view
           MobileScanner(controller: cameraController, onDetect: _onDetect),
-
-          // Overlay dengan cutout
           ColorFiltered(
             colorFilter: ColorFilter.mode(
               Colors.black.withValues(alpha: 0.5),
@@ -1322,8 +1339,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ],
             ),
           ),
-
-          // Frame border
           Center(
             child: Container(
               width: 250,
@@ -1334,7 +1349,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
               child: Stack(
                 children: [
-                  // Corner indicators
                   _buildCorner(Alignment.topLeft),
                   _buildCorner(Alignment.topRight),
                   _buildCorner(Alignment.bottomLeft),
@@ -1343,8 +1357,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
           ),
-
-          // Instruksi
           Positioned(
             bottom: 100,
             left: 0,
