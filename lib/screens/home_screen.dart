@@ -287,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         margin: const EdgeInsets.only(left: 12),
                         child: Material(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10),
                           child: InkWell(
                             onTap: _navigateToNotifications,
@@ -470,9 +470,9 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(12),
         child: Container(
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withOpacity(0.3), width: 1),
+            border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -612,10 +612,13 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withOpacity(0.2), width: 1),
+        border: Border.all(
+          color: Colors.orange.withValues(alpha: 0.2),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -641,7 +644,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
+                    color: Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
@@ -712,7 +715,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withOpacity(0.1),
+            color: AppTheme.primaryColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Icon(icon, color: AppTheme.primaryColor, size: 16),
@@ -741,7 +744,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primaryColor.withOpacity(0.3),
+            color: AppTheme.primaryColor.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -754,7 +757,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(Icons.school, color: Colors.white, size: 28),
@@ -811,7 +814,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -827,7 +830,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
+                    color: Colors.green.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(
@@ -908,13 +911,13 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isUrgent
-                  ? Colors.red.withOpacity(0.3)
-                  : Colors.grey.withOpacity(0.1),
+                  ? Colors.red.withValues(alpha: 0.3)
+                  : Colors.grey.withValues(alpha: 0.1),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
@@ -929,8 +932,8 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: isUrgent
-                    ? Colors.red.withOpacity(0.1)
-                    : Colors.orange.withOpacity(0.1),
+                    ? Colors.red.withValues(alpha: 0.1)
+                    : Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -956,8 +959,8 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: isUrgent
-                    ? Colors.red.withOpacity(0.1)
-                    : Colors.orange.withOpacity(0.1),
+                    ? Colors.red.withValues(alpha: 0.1)
+                    : Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Column(
@@ -996,7 +999,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1024,7 +1027,7 @@ class _HomeScreenState extends State<HomeScreen> {
           width: 52,
           height: 52,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: Center(
@@ -1100,7 +1103,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

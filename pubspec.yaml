@@ -50,6 +50,8 @@ dependencies:
   device_info_plus: ^12.1.0
   geolocator: ^14.0.2
   mobile_scanner: ^7.1.2
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.7
 
 dev_dependencies:
   flutter_test:
@@ -102,3 +104,25 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+  # Konfigurasi Icon & Nama Aplikasi
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/school_logo.png"
+  min_sdk_android: 21
+  name: "SMKScan" # <--- Ini yang mengubah nama jadi SMKScan
+
+# Konfigurasi Native Splash (Layar Putih Awal)
+flutter_native_splash:
+  # Karena gambar barunya punya background lingkaran putih,
+  # kita set warna latar belakang HP jadi putih juga biar menyatu.
+  color: "#ffffff"
+  image: "assets/school.png" # Menggunakan gambar baru
+  branding: "assets/school.png"
+  fullscreen: true
+
+  # Khusus Android 12 ke atas
+  android_12:
+    image: "assets/school.png"
+    icon_background_color: "#ffffff"
